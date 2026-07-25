@@ -3,6 +3,9 @@ defined('MOODLE_INTERNAL') || die();
 
 function local_gradesheet_extend_navigation_course($navigation, $course, $context) {
     if (isloggedin() && !isguestuser()) {
+        if (!empty($course->id)) {
+            \local_gradesheet\helper::ensure_course_defaults($course->id);
+        }
         $url  = new moodle_url('/local/gradesheet/index.php', ['courseid' => $course->id]);
         $node = navigation_node::create(
             'Grade Sheet',
