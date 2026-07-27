@@ -7,6 +7,10 @@ require_login();
 
 $courseid = optional_param('courseid', 0, PARAM_INT);
 
+if ($courseid > 0) {
+    \local_gradesheet\helper::ensure_course_defaults($courseid);
+}
+
 $PAGE->set_url('/local/gradesheet/index.php');
 $PAGE->set_context(context_system::instance());
 $PAGE->set_title(get_string('pluginname', 'local_gradesheet'));
