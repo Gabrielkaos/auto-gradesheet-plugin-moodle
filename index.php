@@ -17,17 +17,16 @@ $PAGE->set_title(get_string('pluginname', 'local_gradesheet'));
 $PAGE->set_heading(get_string('pluginname', 'local_gradesheet'));
 
 // ── TRANSMUTATION ─────────────────────────────────────────────────────────────
-function transmute($grade) {
-    if ($grade >= 97) return '1.00';
-    if ($grade >= 94) return '1.25';
-    if ($grade >= 91) return '1.50';
-    if ($grade >= 88) return '1.75';
-    if ($grade >= 85) return '2.00';
-    if ($grade >= 82) return '2.25';
-    if ($grade >= 79) return '2.50';
-    if ($grade >= 76) return '2.75';
-    if ($grade >= 75) return '3.00';
-    return '5.00';
+function transmute_equiv($grade) {
+	if ($grade == 0)    return '-';
+	if ($grade == 100)  return '1.0';
+	if ($grade >= 94)   return number_format(1.1 + (99 - $grade) * 0.1, 1);
+	if ($grade >= 89)   return number_format(1.6 + (93 - $grade) * 0.1, 1);
+	if ($grade >= 84)   return number_format(2.1 + (88 - $grade) * 0.1, 1);
+	if ($grade >= 79)   return number_format(2.6 + (83 - $grade) * 0.1, 1);
+	if ($grade >= 75)   return number_format(3.1 + (78 - $grade) * 0.1, 1);
+	if ($grade >= 69)   return number_format(3.6 + (74 - $grade) * 0.1, 1);
+	return '5.0';
 }
 
 // ── GRADE COMPUTATION ─────────────────────────────────────────────────────────
@@ -109,7 +108,7 @@ function compute_student_grades($DB, $courseid, $studentid, $midweight, $finweig
         'finals'     => $finAvg,
         'average'    => $weightedFinal,
         'cattotals'  => $cattotals,
-        'transmuted' => transmute($weightedFinal),
+        'transmuted' => transmute_equiv($weightedFinal),
         'remarks'    => $weightedFinal >= 75 ? 'PASSED' : 'FAILED',
     ];
 }
