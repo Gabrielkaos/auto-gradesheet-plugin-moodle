@@ -43,7 +43,6 @@ if ($isadmin) {
 }
 
 echo '<div class="container mt-4">';
-echo '<h2>Grade Sheet Generator</h2>';
 echo '<form method="get" action="">';
 echo '<div class="form-group">';
 echo '<label for="courseid"><strong>Select Course:</strong></label>';
@@ -71,10 +70,9 @@ if ($courseid) {
         $grades = helper::compute_student_grades($courseid, $USER->id, $midweight, $finweight);
         $color  = $grades['remarks'] === 'PASSED' ? '#155724' : '#721c24';
         $bg     = $grades['remarks'] === 'PASSED' ? '#d4edda' : '#f8d7da';
-        $icon   = $grades['remarks'] === 'PASSED' ? '✅' : '❌';
 
         echo '<hr>';
-        echo "<h4>My Grades — {$coursename}</h4>";
+        echo "<h4>My Grades - {$coursename}</h4>";
         echo '
         <style>
             .grade-card { max-width: 520px; margin: 0 auto; }
@@ -96,7 +94,7 @@ if ($courseid) {
 
         echo '<div class="grade-card">';
         echo '<div class="card">';
-        echo '<div class="card-header">📋 My Grade Report</div>';
+        echo '<div class="card-header">My Grade Report</div>';
         echo '<div class="card-body p-0">';
 
         echo '<div class="grade-row">
@@ -144,7 +142,7 @@ if ($courseid) {
 
         echo '</div></div>';
         echo '<div class="remarks-box" style="background:' . $bg . '; color:' . $color . '">
-                ' . $icon . ' ' . $grades['remarks'] . '
+                ' . $grades['remarks'] . '
               </div>';
         echo '</div>';
 
