@@ -1,79 +1,95 @@
 # Auto Gradesheet Plugin for Moodle
 
-A Moodle plugin that helps instructors generate and export course gradesheets, with preview and Excel export support.
+A Moodle local plugin that generates "Report of Grades" documents for Eastern Samar State University (ESSU), supporting on-screen preview, PDF export, and Excel export.
+
+> **Thesis:** This plugin was developed as part of the undergraduate thesis *"Development of an Automated Grade Sheet Generation Plugin for the Moodle Learning Management System for Faculty Grade Reporting."*
 
 ## Features
 
-- Course-level gradesheet settings
-- Gradesheet preview before export
-- Export gradesheet data
-- Excel export support
-- Moodle language string support (`lang/`)
-- Plugin versioning and upgrade structure (`version.php`, `db/`)
+- Role-based views (students see their own grade card; faculty/admins see all students)
+- Weighted grade computation by category or midterm/finals fallback
+- Philippine transmutation scale (1.0–5.0 equivalent ratings)
+- Print-ready HTML preview with ESSU branding
+- PDF export via TCPDF
+- Excel export via PhpSpreadsheet
+- Course-level configuration (semester, school year, signatories, grade categories)
+- Auto-initialization of defaults on course creation
+- Course edit form integration via Moodle 4.5+ hooks
 
 ## Repository Structure
 
-- `index.php` — main entry point for plugin UI/workflow
-- `course_settings.php` — course settings and configuration
-- `preview.php` — preview gradesheet output before export
-- `export.php` — export logic
-- `export_excel.php` — Excel-specific export functionality
-- `lib.php` — core helper functions and Moodle integration hooks
-- `version.php` — plugin metadata and version definition
-- `db/` — Moodle database/install/upgrade definitions
-- `gradesheet/` — gradesheet-related classes/resources
-- `lang/` — language packs
-- `pix/` — plugin icons/images
+```
+local_gradesheet/
+├── classes/
+│   ├── helper.php              Static helpers (transmute, config loading, grade computation)
+│   ├── gradesheet_service.php  Coordinator service for batch grade processing
+│   ├── observer.php            Event observer (course_created)
+│   └── hooks.php               Course edit form hooks
+├── db/
+│   ├── access.php              Capability definitions
+│   ├── events.php              Event observer registration
+│   ├── hooks.php               Hook callback registration
+│   ├── install.xml             XMLDB schema (3 tables)
+│   ├── install.php             Install callback
+│   └── upgrade.php             DB upgrade steps
+├── lang/en/local_gradesheet.php  Language strings
+├── pix/                        Plugin images (ESSU header, logos)
+├── cli/                        CLI test scripts
+├── index.php                   Main UI (course selector, student/faculty views)
+├── course_settings.php         Course configuration page
+├── preview.php                 Print-ready HTML preview
+├── export.php                  PDF export (TCPDF)
+├── export_excel.php            Excel export (PhpSpreadsheet)
+├── lib.php                     Moodle navigation hooks
+└── version.php                 Plugin metadata
+```
+
+## Architecture
+
+Business logic is centralized in the `classes/` layer:
+
+- **`helper.php`** — Static methods for grade transmutation, config loading, student filtering, and per-student grade computation. Single source of truth for the grading formula.
+- **`gradesheet_service.php`** — Coordinator that iterates all students and returns rows + pass/fail statistics. Used by `export.php`, `export_excel.php`, and `preview.php`.
+
+Page files (`index.php`, `export.php`, `export_excel.php`, `preview.php`) are thin controllers responsible only for output formatting.
 
 ## Requirements
 
-- Moodle (compatible version depends on your `version.php` target)
-- PHP version supported by your Moodle installation
-- Proper role/capability permissions to access grade data and exports
+- Moodle 4.5+ (`2024100700`)
+- PHP version supported by Moodle
+- PhpSpreadsheet (bundled with Moodle)
+- TCPDF (bundled with Moodle)
 
 ## Installation
 
-1. Download or clone this repository:
+1. Clone the repository into `local/gradesheet/` within your Moodle installation:
    ```bash
-   git clone https://github.com/Gabrielkaos/auto-gradesheet-plugin-moodle.git
+   git clone https://github.com/Gabrielkaos/auto-gradesheet-plugin-moodle.git local/gradesheet
    ```
 
-2. Place the plugin folder into the correct Moodle plugin directory (according to this plugin type).
+2. In Moodle, go to **Site administration → Notifications**.
 
-3. In Moodle, go to:
-   **Site administration → Notifications**
-
-4. Complete the installation/upgrade prompts.
+3. Complete the installation prompts.
 
 ## Usage
 
 1. Open a Moodle course.
-2. Navigate to the plugin page (via course navigation or admin location where it is registered).
-3. Configure gradesheet settings.
+2. Navigate to the plugin page via the course navigation or admin menu.
+3. Configure gradesheet settings (semester, school year, signatories, grade categories).
 4. Preview the gradesheet.
-5. Export as needed (including Excel export).
+5. Export as PDF or Excel.
 
 ## Configuration
 
-- Configure defaults and behavior in `course_settings.php`.
-- Language/custom labels can be adjusted via files in `lang/`.
-- Any plugin version or upgrade changes should be reflected in `version.php` and corresponding `db/` upgrade scripts.
-
-## Development Notes
-
-- Keep `version.php` updated for every release.
-- Add DB changes through Moodle upgrade mechanisms in `db/`.
-- Keep export responsibilities separated (`export.php` vs `export_excel.php`) for maintainability.
-- Ensure capability checks and context validation are enforced before exposing grade exports.
+- Course-level settings: `course_settings.php` or the Moodle course edit form (Moodle 4.5+ hooks).
+- Default categories and config are auto-created on course creation.
+- Language strings can be adjusted via `lang/en/local_gradesheet.php`.
 
 ## Security & Permissions
 
-Because this plugin handles grade-related data:
-
-- Enforce Moodle capability checks before rendering/exporting data.
-- Validate course/module context on all entry points.
-- Sanitize outputs and validate user inputs.
-- Restrict export access to authorized roles only.
+- `local/gradesheet:manage` — required for preview and exports (teachers, managers).
+- `local/gradesheet:view` — required for viewing grades (students, teachers, managers).
+- Capability checks and context validation are enforced on all entry points.
 
 ## Contributing
 
@@ -86,4 +102,4 @@ Contributions are welcome.
 
 ## License
 
-Add your license here (for example, GPL-3.0 to align with Moodle ecosystem expectations).
+GPL-3.0 (aligned with Moodle ecosystem expectations).
