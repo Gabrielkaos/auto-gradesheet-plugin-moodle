@@ -60,6 +60,7 @@ echo '</form>';
 
 if ($courseid) {
     $cfg     = helper::load_course_config($courseid);
+
     $context = context_course::instance($courseid);
     extract($cfg);
 
@@ -237,6 +238,11 @@ if ($courseid) {
               </div>";
         echo '</div></div>';
     }
+} else {
+    echo '<hr>';
+    echo '<div class="text-center text-muted mt-4">';
+    echo '<p style="font-size:18px;">No course selected. Please select a course from the dropdown above.</p>';
+    echo '</div>';
 }
 
 echo '</div>';
