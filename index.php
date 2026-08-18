@@ -157,10 +157,10 @@ if ($courseid) {
 
         echo '<hr>';
         echo "<h4>Students and Grades — {$coursename}</h4>";
-        echo '<a href="preview.php?courseid='      . $courseid . '" class="btn btn-primary mb-3">👁 Preview & Print</a> ';
-        echo '<a href="export.php?courseid='       . $courseid . '" class="btn btn-success mb-3">⬇ Download PDF</a> ';
-        echo '<a href="export_excel.php?courseid=' . $courseid . '" class="btn btn-warning mb-3">📊 Download Excel</a> ';
-        echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-secondary mb-3">⚙ Settings</a>';
+        echo '<a href="preview.php?courseid='      . $courseid . '" class="btn btn-primary mb-3">Preview & Print</a> ';
+        echo '<a href="export.php?courseid='       . $courseid . '" class="btn btn-success mb-3">Download PDF</a> ';
+        echo '<a href="export_excel.php?courseid=' . $courseid . '" class="btn btn-warning mb-3">Download Excel</a> ';
+        echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-secondary mb-3">Settings</a>';
 
         echo '<table class="table table-bordered table-striped">';
         echo '<thead class="thead-dark"><tr>';
@@ -223,7 +223,7 @@ if ($courseid) {
         $failrate = $total > 0 ? round(($failcount / $total) * 100, 1) : 0;
 
         echo '<div class="card mt-3">';
-        echo '<div class="card-header"><strong>📊 Class Summary</strong></div>';
+        echo '<div class="card-header"><strong>Class Summary</strong></div>';
         echo '<div class="card-body">';
         echo '<div class="row text-center">';
         echo "<div class='col-md-3'><h4>{$total}</h4><p class='text-muted'>Total Students</p></div>";
