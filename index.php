@@ -156,7 +156,7 @@ if ($courseid) {
         $students = helper::get_non_teaching_students(context_course::instance($courseid));
 
         echo '<hr>';
-        echo "<h4>Students and Grades — {$coursename}</h4>";
+        echo "<h4>Students and Grades - {$coursename}</h4>";
         echo '<a href="preview.php?courseid='      . $courseid . '" class="btn btn-primary mb-3">Preview & Print</a> ';
         echo '<a href="export.php?courseid='       . $courseid . '" class="btn btn-success mb-3">Download PDF</a> ';
         echo '<a href="export_excel.php?courseid=' . $courseid . '" class="btn btn-warning mb-3">Download Excel</a> ';
