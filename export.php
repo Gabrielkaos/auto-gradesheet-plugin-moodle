@@ -66,7 +66,7 @@ $pdf->report = [
     'courseandyear' => $courseandyear,
     'schedule'      => $schedule,
     'units'         => $units,
-    'legend'        => helper::get_rating_legend(),
+    'legend'        => helper::get_rating_legend($courseid),
 ];
 $pdf->AddPage();
 

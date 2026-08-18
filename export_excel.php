@@ -87,7 +87,7 @@ foreach ($infoData as $r => [$label, $val]) {
 }
 
 $legend = [['Actual Rating', 'Equivalent Rating', 'Adjectival Rating']];
-$legend = array_merge($legend, helper::get_rating_legend());
+$legend = array_merge($legend, helper::get_rating_legend($courseid));
 
 $legendStartRow = 6;
 foreach ($legend as $li => $lrow) {

@@ -60,7 +60,25 @@ class helper {
         return $config;
     }
 
-    public static function transmute_equiv($grade) {
+    public static function transmute_equiv($grade, ?int $courseid = null) {
+        if ($courseid) {
+            $custom = self::get_custom_scale($courseid);
+            if (!empty($custom)) {
+                if ($grade == 0) {
+                    return '-';
+                }
+                foreach ($custom as $row) {
+                    if ($grade >= $row->minscore && $grade <= $row->maxscore) {
+                        return $row->equivalent;
+                    }
+                }
+                // Grade doesn't fall in any configured bracket (gap in the scale) —
+                // do not guess; flag it so the gap gets noticed and fixed rather than
+                // silently showing the wrong equivalent.
+                return 'N/A';
+            }
+        }
+
         if ($grade == 0)    return '-';
         if ($grade == 100)  return '1.0';
         if ($grade >= 94)   return number_format(1.1 + (99 - $grade) * 0.1, 1);
@@ -70,6 +88,20 @@ class helper {
         if ($grade >= 75)   return number_format(3.1 + (78 - $grade) * 0.1, 1);
         if ($grade >= 69)   return number_format(3.6 + (74 - $grade) * 0.1, 1);
         return '5.0';
+    }
+
+    /**
+     * Fetch a course's custom transmutation scale, highest bracket first.
+     * Returns an empty array if the course has no custom scale (i.e. uses the default).
+     */
+    public static function get_custom_scale(int $courseid): array {
+        global $DB;
+        return array_values($DB->get_records('local_gradesheet_transmute', ['courseid' => $courseid], 'minscore DESC'));
+    }
+
+    public static function has_custom_scale(int $courseid): bool {
+        global $DB;
+        return $DB->record_exists('local_gradesheet_transmute', ['courseid' => $courseid]);
     }
 
     public static function load_course_config(int $courseid): array {
@@ -99,6 +131,10 @@ class helper {
             'mpct'          => $config ? $config->quizweight  : 50,
             'fpct'          => $config ? $config->examweight  : 50,
         ];
+    }
+
+    private static function format_score($score): string {
+        return (floor($score) == $score) ? (string) intval($score) : rtrim(rtrim(number_format($score, 2), '0'), '.');
     }
 
     public static function get_non_teaching_students(\context_course $context): array {
@@ -200,12 +236,32 @@ class helper {
             'finals'     => $finAvg,
             'average'    => $weightedFinal,
             'cattotals'  => $cattotals,
-            'transmuted' => self::transmute_equiv($weightedFinal),
+            'transmuted' => self::transmute_equiv($weightedFinal, $courseid),
             'remarks'    => $weightedFinal >= 75 ? 'PASSED' : 'FAILED',
         ];
     }
 
-    public static function get_rating_legend(): array {
+    public static function get_rating_legend(?int $courseid = null): array {
+        if ($courseid) {
+            $custom = self::get_custom_scale($courseid);
+            if (!empty($custom)) {
+                $legend = [];
+                foreach ($custom as $row) {
+                    $range = (abs($row->minscore - $row->maxscore) < 0.001)
+                        ? self::format_score($row->maxscore)
+                        : self::format_score($row->maxscore) . '-' . self::format_score($row->minscore);
+                    $legend[] = [$range, $row->equivalent, $row->descriptor];
+                }
+                // Non-numeric enrollment statuses aren't part of the numeric scale being
+                // customized here, so keep them visible regardless of the course's scale.
+                $legend[] = ['INC', 'INC', 'Incomplete'];
+                $legend[] = ['Dr',  'Dr',  'Dropped'];
+                $legend[] = ['WP',  'WP',  'Withdrawn w/ permission'];
+                $legend[] = ['IP',  'IP',  'In Progress'];
+                return $legend;
+            }
+        }
+
         return [
             ['100',   '1.0',     'Outstanding'],
             ['94-90', '1.1-1.5', 'Excellent'],

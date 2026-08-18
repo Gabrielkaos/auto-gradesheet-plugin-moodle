@@ -66,5 +66,24 @@ function xmldb_local_gradesheet_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026031203, 'local', 'gradesheet');
     }
 
+    if ($oldversion < 2026031300) {
+        // New transmutation/grading-scale table
+        $table = new xmldb_table('local_gradesheet_transmute');
+        $table->add_field('id',         XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE);
+        $table->add_field('courseid',   XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null);
+        $table->add_field('minscore',   XMLDB_TYPE_NUMBER,  '10', 2,    XMLDB_NOTNULL, null);
+        $table->add_field('maxscore',   XMLDB_TYPE_NUMBER,  '10', 2,    XMLDB_NOTNULL, null);
+        $table->add_field('equivalent', XMLDB_TYPE_CHAR,    '10', null, XMLDB_NOTNULL, null);
+        $table->add_field('descriptor', XMLDB_TYPE_CHAR,    '100', null, null, null, '');
+        $table->add_field('sortorder',  XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_index('courseid', XMLDB_INDEX_NOTUNIQUE, ['courseid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 2026031300, 'local', 'gradesheet');
+    }
+
     return true;
 }

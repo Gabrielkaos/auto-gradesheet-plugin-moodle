@@ -23,6 +23,7 @@ $gitems = $DB->get_records_select(
 
 // ── HANDLE FORM SUBMISSIONS ───────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_sesskey();
     $action = optional_param('action', '', PARAM_TEXT);
 
     // Save course details
@@ -103,6 +104,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $catsuccess = "Category deleted.";
     }
 
+    // Add a new transmutation bracket
+    if ($action === 'addtransmute') {
+        $min   = required_param('tmin', PARAM_FLOAT);
+        $max   = required_param('tmax', PARAM_FLOAT);
+        $equiv = required_param('tequiv', PARAM_TEXT);
+        $desc  = required_param('tdesc', PARAM_TEXT);
+        if ($max >= $min && $equiv !== '') {
+            $sortorder = $DB->count_records('local_gradesheet_transmute', ['courseid' => $courseid]);
+            $DB->insert_record('local_gradesheet_transmute', (object)[
+                'courseid'   => $courseid,
+                'minscore'   => $min,
+                'maxscore'   => $max,
+                'equivalent' => $equiv,
+                'descriptor' => $desc,
+                'sortorder'  => $sortorder,
+            ]);
+            $scalesuccess = "Bracket added!";
+        } else {
+            $scaleerror = "Max score must be greater than or equal to min score.";
+        }
+    }
+
+    // Update an existing transmutation bracket
+    if ($action === 'updatetransmute') {
+        $tid   = required_param('tid', PARAM_INT);
+        $min   = required_param('tmin', PARAM_FLOAT);
+        $max   = required_param('tmax', PARAM_FLOAT);
+        $equiv = required_param('tequiv', PARAM_TEXT);
+        $desc  = required_param('tdesc', PARAM_TEXT);
+
+        $row = $DB->get_record('local_gradesheet_transmute', ['id' => $tid, 'courseid' => $courseid]);
+        if (!$row) {
+            $scaleerror = "That bracket no longer exists.";
+        } else if ($max < $min) {
+            $scaleerror = "Max score must be greater than or equal to min score.";
+        } else if ($equiv === '') {
+            $scaleerror = "Equivalent cannot be empty.";
+        } else {
+            $row->minscore   = $min;
+            $row->maxscore   = $max;
+            $row->equivalent = $equiv;
+            $row->descriptor = $desc;
+            $DB->update_record('local_gradesheet_transmute', $row);
+            redirect(
+                new moodle_url('/local/gradesheet/course_settings.php', ['courseid' => $courseid], 'grading-scale'),
+                "Bracket updated!",
+                null,
+                \core\output\notification::NOTIFY_SUCCESS
+            );
+        }
+    }
+
+    // Delete a transmutation bracket
+    if ($action === 'deletetransmute') {
+        $tid = required_param('tid', PARAM_INT);
+        $DB->delete_records('local_gradesheet_transmute', ['id' => $tid, 'courseid' => $courseid]);
+        $scalesuccess = "Bracket deleted.";
+    }
+
+    // Reset to the default ESSU scale (deletes all custom brackets for this course)
+    if ($action === 'resetscale') {
+        $DB->delete_records('local_gradesheet_transmute', ['courseid' => $courseid]);
+        $scalesuccess = "Reverted to the default grading scale.";
+    }
+
     // Save grade item mapping
     if ($action === 'savemapping') {
         foreach ($gitems as $gitem) {
@@ -145,6 +211,12 @@ foreach ($maps as $map) {
     $mappings[$map->gradeitemid] = ['period' => $map->period, 'categoryid' => $map->categoryid];
 }
 
+$transmuterows  = $DB->get_records('local_gradesheet_transmute', ['courseid' => $courseid], 'minscore DESC');
+$edittid        = optional_param('edittid', 0, PARAM_INT);
+$edittransmute  = $edittid ? $DB->get_record('local_gradesheet_transmute', ['id' => $edittid, 'courseid' => $courseid]) : null;
+$usingcustomscale = !empty($transmuterows);
+$displaylegend  = \local_gradesheet\helper::get_rating_legend($usingcustomscale ? $courseid : null);
+
 echo $OUTPUT->header();
 ?>
 
@@ -165,6 +237,7 @@ echo $OUTPUT->header();
             <?php endif; ?>
             <form method="post">
                 <input type="hidden" name="action" value="savedetails">
+                <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
 
                 <h6 class="text-muted mb-3">- Report Header -</h6>
                 <div class="form-group row mb-3">
@@ -264,6 +337,7 @@ echo $OUTPUT->header();
                         <td>
                             <form method="post" id="editcategoryform<?php echo $cat->id; ?>">
                                 <input type="hidden" name="action" value="updatecategory">
+                                <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
                                 <input type="hidden" name="catid" value="<?php echo $cat->id; ?>">
                                 <input type="text" name="catname" class="form-control form-control-sm"
                                        value="<?php echo s($cat->name); ?>">
@@ -288,6 +362,7 @@ echo $OUTPUT->header();
                                class="btn btn-warning btn-sm">Edit</a>
                             <form method="post" style="display:inline">
                                 <input type="hidden" name="action" value="deletecategory">
+                                <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
                                 <input type="hidden" name="catid" value="<?php echo $cat->id; ?>">
                                 <button type="submit" class="btn btn-danger btn-sm"
                                         onclick="return confirm('Delete this category?')">Delete</button>
@@ -310,6 +385,7 @@ echo $OUTPUT->header();
             <!-- Add new category -->
             <form method="post" class="mt-3">
                 <input type="hidden" name="action" value="addcategory">
+                <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
                 <h6><strong>+ Add Category</strong></h6>
                 <div class="form-row align-items-end">
                     <div class="col-md-5">
@@ -350,6 +426,7 @@ echo $OUTPUT->header();
                 <p class="text-muted">Assign each grade item to a <strong>Category</strong> and a <strong>Period</strong>.</p>
                 <form method="post">
                     <input type="hidden" name="action" value="savemapping">
+                    <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
                     <table class="table table-bordered table-striped">
                         <thead class="thead-dark">
                             <tr>
@@ -391,6 +468,134 @@ echo $OUTPUT->header();
                     <button type="submit" class="btn btn-primary">Save Mapping</button>
                 </form>
             <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- SECTION 4: Grading Scale / Transmutation -->
+    <div class="card mb-4" id="grading-scale">
+        <div class="card-header bg-dark text-white">
+            <strong>Grading Scale / Transmutation</strong>
+        </div>
+        <div class="card-body">
+            <?php if (!empty($scalesuccess)): ?>
+                <div class="alert alert-success"><?php echo $scalesuccess; ?></div>
+            <?php endif; ?>
+            <?php if (!empty($scaleerror)): ?>
+                <div class="alert alert-danger"><?php echo $scaleerror; ?></div>
+            <?php endif; ?>
+
+            <p class="text-muted">
+                By default this course uses ESSU's standard transmutation table. Add brackets below to define
+                your own scale instead — for example, if the college uses a different equivalent-rating system.
+                Brackets are matched by the student's numeric average (0–100) falling between Min and Max.
+            </p>
+
+            <?php if ($usingcustomscale): ?>
+                <div class="alert alert-info d-flex justify-content-between align-items-center">
+                    <span>✓ This course is using a <strong>custom</strong> grading scale.</span>
+                    <form method="post" onsubmit="return confirm('Delete all custom brackets and revert to the default ESSU scale?');">
+                        <input type="hidden" name="action" value="resetscale">
+                        <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+                        <button type="submit" class="btn btn-outline-danger btn-sm">Reset to Default Scale</button>
+                    </form>
+                </div>
+            <?php else: ?>
+                <div class="alert alert-secondary">
+                    Currently using the <strong>default ESSU</strong> scale (no custom brackets defined).
+                </div>
+            <?php endif; ?>
+
+            <table class="table table-bordered table-sm mb-3">
+                <thead class="thead-dark">
+                    <tr>
+                        <th>Min Score</th>
+                        <th>Max Score</th>
+                        <th>Equivalent</th>
+                        <th>Descriptor</th>
+                        <?php if ($usingcustomscale): ?><th>Action</th><?php endif; ?>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if ($usingcustomscale): ?>
+                        <?php foreach ($transmuterows as $row): ?>
+                        <?php if ($edittransmute && (int) $edittransmute->id === (int) $row->id): ?>
+                        <tr class="table-warning">
+                            <td>
+                                <form method="post" id="edittransmuteform<?php echo $row->id; ?>">
+                                    <input type="hidden" name="action" value="updatetransmute">
+                                    <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+                                    <input type="hidden" name="tid" value="<?php echo $row->id; ?>">
+                                    <input type="number" step="0.01" name="tmin" class="form-control form-control-sm" value="<?php echo s($row->minscore); ?>">
+                                </form>
+                            </td>
+                            <td><input type="number" step="0.01" name="tmax" class="form-control form-control-sm" form="edittransmuteform<?php echo $row->id; ?>" value="<?php echo s($row->maxscore); ?>"></td>
+                            <td><input type="text" name="tequiv" class="form-control form-control-sm" form="edittransmuteform<?php echo $row->id; ?>" value="<?php echo s($row->equivalent); ?>"></td>
+                            <td><input type="text" name="tdesc" class="form-control form-control-sm" form="edittransmuteform<?php echo $row->id; ?>" value="<?php echo s($row->descriptor); ?>"></td>
+                            <td>
+                                <button type="submit" class="btn btn-primary btn-sm" form="edittransmuteform<?php echo $row->id; ?>">Save</button>
+                                <a href="course_settings.php?courseid=<?php echo $courseid; ?>#grading-scale" class="btn btn-secondary btn-sm">Cancel</a>
+                            </td>
+                        </tr>
+                        <?php else: ?>
+                        <tr>
+                            <td><?php echo s($row->minscore); ?></td>
+                            <td><?php echo s($row->maxscore); ?></td>
+                            <td><strong><?php echo s($row->equivalent); ?></strong></td>
+                            <td><?php echo s($row->descriptor); ?></td>
+                            <td>
+                                <a href="course_settings.php?courseid=<?php echo $courseid; ?>&edittid=<?php echo $row->id; ?>#grading-scale"
+                                   class="btn btn-warning btn-sm">Edit</a>
+                                <form method="post" style="display:inline">
+                                    <input type="hidden" name="action" value="deletetransmute">
+                                    <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+                                    <input type="hidden" name="tid" value="<?php echo $row->id; ?>">
+                                    <button type="submit" class="btn btn-danger btn-sm"
+                                            onclick="return confirm('Delete this bracket?')">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <?php foreach ($displaylegend as $lrow): ?>
+                        <tr class="text-muted">
+                            <td colspan="2"><?php echo s($lrow[0]); ?></td>
+                            <td><?php echo s($lrow[1]); ?></td>
+                            <td><?php echo s($lrow[2]); ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+
+            <!-- Add new bracket -->
+            <form method="post" class="mt-3">
+                <input type="hidden" name="action" value="addtransmute">
+                <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+                <h6><strong>+ Add Bracket</strong></h6>
+                <p class="text-muted small">Adding your first bracket switches this course to a custom scale.</p>
+                <div class="form-row align-items-end">
+                    <div class="col-md-2">
+                        <label><strong>Min Score</strong></label>
+                        <input type="number" step="0.01" name="tmin" class="form-control" placeholder="e.g. 90" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label><strong>Max Score</strong></label>
+                        <input type="number" step="0.01" name="tmax" class="form-control" placeholder="e.g. 100" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label><strong>Equivalent</strong></label>
+                        <input type="text" name="tequiv" class="form-control" placeholder="e.g. A" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label><strong>Descriptor</strong></label>
+                        <input type="text" name="tdesc" class="form-control" placeholder="e.g. Outstanding">
+                    </div>
+                    <div class="col-md-2 mt-2">
+                        <button type="submit" class="btn btn-success btn-block">Add</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 </div>

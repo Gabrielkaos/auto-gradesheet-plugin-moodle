@@ -127,7 +127,7 @@ echo $OUTPUT->header();
                     <tr><th>Actual<br>Rating</th><th>Equivalent<br>Rating</th><th>Adjectival<br>Rating</th></tr>
                 </thead>
                 <tbody>
-                    <?php foreach (helper::get_rating_legend() as $lrow): ?>
+                    <?php foreach (helper::get_rating_legend($courseid) as $lrow): ?>
                     <tr><td><?php echo $lrow[0]; ?></td><td><?php echo $lrow[1]; ?></td><td><?php echo $lrow[2]; ?></td></tr>
                     <?php endforeach; ?>
                 </tbody>
