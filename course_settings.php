@@ -149,7 +149,7 @@ echo $OUTPUT->header();
 ?>
 
 <div class="container mt-4">
-    <h2>⚙ Grade Sheet Settings</h2>
+    <h2>Grade Sheet Settings</h2>
     <h5 class="text-muted">Course: <?php echo format_string($coursename); ?></h5>
     <a href="index.php?courseid=<?php echo $courseid; ?>" class="btn btn-secondary btn-sm mb-3">← Back to Grade Sheet</a>
     <hr>
@@ -157,7 +157,7 @@ echo $OUTPUT->header();
     <!-- SECTION 1: Course Details -->
     <div class="card mb-4">
         <div class="card-header bg-dark text-white">
-            <strong>📝 Course Details & Signatories</strong>
+            <strong>Course Details & Signatories</strong>
         </div>
         <div class="card-body">
             <?php if (!empty($detailsuccess)): ?>
@@ -166,7 +166,7 @@ echo $OUTPUT->header();
             <form method="post">
                 <input type="hidden" name="action" value="savedetails">
 
-                <h6 class="text-muted mb-3">— Report Header —</h6>
+                <h6 class="text-muted mb-3">- Report Header -</h6>
                 <div class="form-group row mb-3">
                     <label class="col-sm-4 col-form-label"><strong>Semester</strong></label>
                     <div class="col-sm-5">
@@ -187,7 +187,7 @@ echo $OUTPUT->header();
                     </div>
                 </div>
 
-                <hr><h6 class="text-muted mb-3">— Course Information —</h6>
+                <hr><h6 class="text-muted mb-3">- Course Information -</h6>
 
                 <?php
                 $fields = [
@@ -209,7 +209,7 @@ echo $OUTPUT->header();
                 </div>
                 <?php endforeach; ?>
 
-                <hr><h6 class="text-muted mb-3">— Signatories —</h6>
+                <hr><h6 class="text-muted mb-3">- Signatories -</h6>
 
                 <?php
                 $sigs = [
@@ -230,7 +230,7 @@ echo $OUTPUT->header();
                 </div>
                 <?php endforeach; ?>
 
-                <button type="submit" class="btn btn-primary">💾 Save Course Details</button>
+                <button type="submit" class="btn btn-primary">Save Course Details</button>
             </form>
         </div>
     </div>
@@ -238,7 +238,7 @@ echo $OUTPUT->header();
     <!-- SECTION 2: Grade Categories -->
     <div class="card mb-4" id="grade-categories">
         <div class="card-header bg-dark text-white">
-            <strong>📊 Grade Categories & Weights</strong>
+            <strong>Grade Categories & Weights</strong>
         </div>
         <div class="card-body">
             <?php if (!empty($catsuccess)): ?>
@@ -299,7 +299,7 @@ echo $OUTPUT->header();
                     <tr class="<?php echo abs($totalweight - 100) < 0.01 ? 'table-success' : 'table-danger'; ?>">
                         <td><strong>Total</strong></td>
                         <td><strong><?php echo $totalweight; ?>%
-                            <?php echo abs($totalweight - 100) < 0.01 ? '✅' : '❌ Must be 100%'; ?>
+                            <?php echo abs($totalweight - 100) < 0.01 ? ' total' : ' total must be 100%'; ?>
                         </strong></td>
                         <td></td>
                     </tr>
@@ -333,7 +333,7 @@ echo $OUTPUT->header();
     <!-- SECTION 3: Grade Item Mapping -->
     <div class="card mb-4">
         <div class="card-header bg-dark text-white">
-            <strong>🗂 Grade Item Mapping</strong>
+            <strong>Grade Item Mapping</strong>
         </div>
         <div class="card-body">
             <?php if (!empty($mapsuccess)): ?>
@@ -388,7 +388,7 @@ echo $OUTPUT->header();
                             <?php endforeach; ?>
                         </tbody>
                     </table>
-                    <button type="submit" class="btn btn-primary">💾 Save Mapping</button>
+                    <button type="submit" class="btn btn-primary">Save Mapping</button>
                 </form>
             <?php endif; ?>
         </div>
