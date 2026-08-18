@@ -5,6 +5,9 @@ require_once($CFG->libdir.'/grade/grade_item.php');
 
 require_login();
 
+use local_gradesheet\helper;
+use local_gradesheet\gradesheet_service;
+
 $courseid = required_param('courseid', PARAM_INT);
 $context  = context_course::instance($courseid);
 require_capability('local/gradesheet:manage', $context);
@@ -14,135 +17,10 @@ $PAGE->set_context($context);
 $PAGE->set_title(get_string('pluginname', 'local_gradesheet'));
 $PAGE->set_heading(get_string('pluginname', 'local_gradesheet'));
 
+$data = gradesheet_service::compute_all_grades($courseid);
+extract($data);
 
-function get_remarks_prev($grade) {
-    return ($grade >= 75) ? 'Passed' : 'Failed';
-}
-
-// Load course and config
-$course        = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
-$coursename    = format_string($course->fullname);
-$config        = $DB->get_record('local_gradesheet_config', ['courseid' => $courseid]);
-
-$semester      = ($config && !empty($config->semester))        ? $config->semester        : 'Second Semester';
-$schoolyear    = ($config && !empty($config->schoolyear))      ? $config->schoolyear      : '2025-2026';
-$coursenumber  = ($config && !empty($config->coursenumber))    ? $config->coursenumber    : $coursename;
-$descriptive   = ($config && !empty($config->descriptive))     ? $config->descriptive     : $coursename;
-$courseandyear = ($config && !empty($config->courseandyear))   ? $config->courseandyear   : '';
-$schedule      = ($config && !empty($config->schedule))        ? $config->schedule        : '';
-$units         = ($config && !empty($config->units))           ? $config->units           : '3';
-$instructor    = ($config && !empty($config->instructor))      ? $config->instructor      : '';
-$depthead      = ($config && !empty($config->department_head)) ? $config->department_head : '';
-$registrar     = ($config && !empty($config->registrar))       ? $config->registrar       : '';
-$collegedean   = ($config && !empty($config->college_dean))    ? $config->college_dean    : '';
-
-$midweight = $config ? floatval($config->quizweight) / 100 : 0.50;
-$finweight = $config ? floatval($config->examweight) / 100 : 0.50;
-
-// Load categories
-$categories    = $DB->get_records('local_gradesheet_categories', ['courseid' => $courseid], 'sortorder ASC');
-$hascategories = !empty($categories);
-
-// Get students and grade items
-$students = get_enrolled_users($context, '', 0, 'u.*', 'u.lastname ASC, u.firstname ASC');
-$gitems   = $DB->get_records_select(
-    'grade_items',
-    'courseid = ? AND itemtype != ? AND itemname IS NOT NULL',
-    [$courseid, 'course']
-);
-
-// Transmute to equivalent rating
-function transmute_equiv($grade) {
-	if ($grade == 0)    return '-';
-	if ($grade == 100)  return '1.0';
-	if ($grade >= 94)   return number_format(1.1 + (99 - $grade) * 0.1, 1);
-	if ($grade >= 89)   return number_format(1.6 + (93 - $grade) * 0.1, 1);
-	if ($grade >= 84)   return number_format(2.1 + (88 - $grade) * 0.1, 1);
-	if ($grade >= 79)   return number_format(2.6 + (83 - $grade) * 0.1, 1);
-	if ($grade >= 75)   return number_format(3.1 + (78 - $grade) * 0.1, 1);
-	if ($grade >= 69)   return number_format(3.6 + (74 - $grade) * 0.1, 1);
-	return '5.0';
-}
-
-$rows      = [];
-$passcount = 0;
-$failcount = 0;
-
-foreach ($students as $student) {
-    if (is_siteadmin($student->id)) continue;
-    $roles     = get_user_roles($context, $student->id);
-    $isteacher = false;
-    foreach ($roles as $role) {
-        if ($role->shortname === 'teacher' || $role->shortname === 'editingteacher') {
-            $isteacher = true; break;
-        }
-    }
-    if ($isteacher) continue;
-
-    $cattotals = [];
-    foreach ($categories as $cat) {
-        $cattotals[$cat->id] = ['total' => 0, 'count' => 0, 'weight' => $cat->weight, 'name' => $cat->name];
-    }
-
-    $midTotal = 0; $midCount = 0;
-    $finTotal = 0; $finCount = 0;
-
-    foreach ($gitems as $gitem) {
-        $ggrade = $DB->get_record('grade_grades', ['itemid' => $gitem->id, 'userid' => $student->id]);
-        $val    = ($ggrade && $ggrade->finalgrade !== null) ? floatval($ggrade->finalgrade) : 0;
-        $max    = floatval($gitem->grademax);
-        if ($max > 0 && $max != 100) $val = ($val / $max) * 100;
-
-        $map    = $DB->get_record('local_gradesheet_itemmap', ['courseid' => $courseid, 'gradeitemid' => $gitem->id]);
-        $period = $map ? $map->period     : 'finals';
-        $catid  = $map ? $map->categoryid : 0;
-
-        if ($catid && isset($cattotals[$catid])) {
-            $cattotals[$catid]['total'] += $val;
-            $cattotals[$catid]['count']++;
-        }
-
-        if ($period === 'midterm') { $midTotal += $val; $midCount++; }
-        else                       { $finTotal += $val; $finCount++; }
-    }
-
-    $weightedFinal = 0;
-    $totalWeight   = 0;
-    foreach ($cattotals as $data) {
-        if ($data['count'] > 0) {
-            $weightedFinal += ($data['total'] / $data['count']) * ($data['weight'] / 100);
-            $totalWeight   += $data['weight'];
-        }
-    }
-
-    $midAvg = $midCount > 0 ? $midTotal / $midCount : 0;
-	$finAvg = $finCount > 0 ? $finTotal / $finCount : 0;
-	if ($totalWeight == 0) {
-		$weightedFinal = ($midAvg * $midweight) + ($finAvg * $finweight);
-	}
-
-	
-
-	$midTransmuted = transmute_equiv($midAvg);
-	$finTransmuted = transmute_equiv($finAvg);
-	$avgTransmuted = transmute_equiv($weightedFinal);
-
-    $remarks = get_remarks_prev($weightedFinal);
-    if ($remarks === 'Passed') $passcount++; else $failcount++;
-
-    $rows[] = [
-        'idnumber'  => $student->idnumber,
-        'name'      => $student->lastname . ', ' . $student->firstname,
-        'midterm'   => $midTransmuted,
-        'finals'    => $finTransmuted,
-        'average'   => $avgTransmuted,
-        'remarks'   => $remarks,
-        'cattotals' => $cattotals,
-    ];
-}
-
-$total    = $passcount + $failcount;
-$passrate = $total > 0 ? round(($passcount / $total) * 100, 1) : 0;
+$rows = $data['rows'];
 
 $PAGE->set_url('/local/gradesheet/preview.php', ['courseid' => $courseid]);
 $PAGE->set_context($context);
@@ -207,7 +85,6 @@ echo $OUTPUT->header();
 }
 </style>
 
-<!-- Toolbar -->
 <div class="preview-toolbar">
     <div>
         <strong>📄 Report of Grades Preview</strong>
@@ -221,10 +98,8 @@ echo $OUTPUT->header();
     </div>
 </div>
 
-<!-- Grade Sheet -->
 <div class="gradesheet-wrapper">
 
-    <!-- Header -->
     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; width:100%;">
         <img src="<?php echo $CFG->wwwroot; ?>/local/gradesheet/pix/essu-header.png" style="width:160px; height:auto;">
         <div style="text-align:center; align-self:center;">
@@ -236,7 +111,6 @@ echo $OUTPUT->header();
         <img src="<?php echo $CFG->wwwroot; ?>/local/gradesheet/pix/bagong-pilipinas.png" style="width:80px; height:auto;">
     </div>
 
-    <!-- Course Info + Legend -->
     <div class="gs-info-legend">
         <div class="gs-info">
             <table>
@@ -253,23 +127,14 @@ echo $OUTPUT->header();
                     <tr><th>Actual<br>Rating</th><th>Equivalent<br>Rating</th><th>Adjectival<br>Rating</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td>100</td><td>1.0</td><td>Outstanding</td></tr>
-                    <tr><td>94-90</td><td>1.1-1.5</td><td>Excellent</td></tr>
-                    <tr><td>89-85</td><td>1.6-2.0</td><td>Very Good</td></tr>
-                    <tr><td>84-80</td><td>2.1-2.5</td><td>Good</td></tr>
-                    <tr><td>79-75</td><td>2.6-3.0</td><td>Fair</td></tr>
-                    <tr><td>74-70</td><td>3.1-3.5</td><td>Conditional</td></tr>
-                    <tr><td>69-55</td><td>3.6-5.0</td><td>Failed</td></tr>
-                    <tr><td>INC</td><td>INC</td><td>Incomplete</td></tr>
-                    <tr><td>Dr</td><td>Dr</td><td>Dropped</td></tr>
-                    <tr><td>WP</td><td>WP</td><td>Withdrawn w/ permission</td></tr>
-                    <tr><td>IP</td><td>IP</td><td>In Progress</td></tr>
+                    <?php foreach (helper::get_rating_legend() as $lrow): ?>
+                    <tr><td><?php echo $lrow[0]; ?></td><td><?php echo $lrow[1]; ?></td><td><?php echo $lrow[2]; ?></td></tr>
+                    <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- Grade Table -->
     <table class="gs-table">
         <thead>
             <tr>
@@ -305,7 +170,6 @@ echo $OUTPUT->header();
         </tbody>
     </table>
 
-    <!-- Signatures -->
     <div class="gs-signatures">
         <div class="gs-sig-row">
             <div class="gs-sig-block">
@@ -333,7 +197,6 @@ echo $OUTPUT->header();
         </div>
     </div>
 
-    <!-- Footer -->
     <div class="gs-footer">
         <span>ESSU-ACAD-712.b &nbsp;|&nbsp; Version 5<br>Effectivity Date: March 15, 2024</span>
         <span>Page 1 of 1</span>

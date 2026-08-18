@@ -7,150 +7,17 @@ require_once($CFG->libdir.'/pdflib.php');
 
 require_login();
 
+use local_gradesheet\helper;
+use local_gradesheet\gradesheet_service;
+
 $courseid = required_param('courseid', PARAM_INT);
 $context  = context_course::instance($courseid);
 require_capability('local/gradesheet:manage', $context);
 
-function get_equivalent_pdf($grade) {
-    if ($grade == 100)  return '1.0';
-    if ($grade >= 94)   return number_format(1.1 + (99 - $grade) * 0.1, 1);
-    if ($grade >= 89)   return number_format(1.6 + (93 - $grade) * 0.1, 1);
-    if ($grade >= 84)   return number_format(2.1 + (88 - $grade) * 0.1, 1);
-    if ($grade >= 79)   return number_format(2.6 + (83 - $grade) * 0.1, 1);
-    if ($grade >= 75)   return number_format(3.1 + (78 - $grade) * 0.1, 1);
-    if ($grade >= 69)   return number_format(3.6 + (74 - $grade) * 0.1, 1);
-    return '5.0';
-}
+$data = gradesheet_service::compute_all_grades($courseid);
+extract($data);
 
-// Load course and config
-$course        = $DB->get_record('course', ['id' => $courseid], '*', MUST_EXIST);
-$coursename    = format_string($course->fullname);
-$config        = $DB->get_record('local_gradesheet_config', ['courseid' => $courseid]);
-
-$semester      = ($config && !empty($config->semester))        ? $config->semester        : 'Second Semester';
-$schoolyear    = ($config && !empty($config->schoolyear))      ? $config->schoolyear      : '2025-2026';
-$coursenumber  = ($config && !empty($config->coursenumber))    ? $config->coursenumber    : $coursename;
-$descriptive   = ($config && !empty($config->descriptive))     ? $config->descriptive     : $coursename;
-$courseandyear = ($config && !empty($config->courseandyear))   ? $config->courseandyear   : '';
-$schedule      = ($config && !empty($config->schedule))        ? $config->schedule        : '';
-$units         = ($config && !empty($config->units))           ? $config->units           : '3';
-$instructor    = ($config && !empty($config->instructor))      ? $config->instructor      : '';
-$depthead      = ($config && !empty($config->department_head)) ? $config->department_head : '';
-$registrar     = ($config && !empty($config->registrar))       ? $config->registrar       : '';
-$collegedean   = ($config && !empty($config->college_dean))    ? $config->college_dean    : '';
-
-$midweight = $config ? floatval($config->quizweight) / 100 : 0.50;
-$finweight = $config ? floatval($config->examweight) / 100 : 0.50;
-
-// Load categories
-$categories = $DB->get_records('local_gradesheet_categories',
-    ['courseid' => $courseid], 'sortorder ASC');
-$hascategories = !empty($categories);
-
-// Get students and grade items
-$students = get_enrolled_users($context, '', 0, 'u.*', 'u.lastname ASC, u.firstname ASC');
-$gitems   = $DB->get_records_select(
-    'grade_items',
-    'courseid = ? AND itemtype != ? AND itemname IS NOT NULL',
-    [$courseid, 'course']
-);
-
-// Transmute to equivalent rating
-function transmute_equiv($grade) {
-	if ($grade == 0)    return '-';
-	if ($grade == 100)  return '1.0';
-	if ($grade >= 94)   return number_format(1.1 + (99 - $grade) * 0.1, 1);
-	if ($grade >= 89)   return number_format(1.6 + (93 - $grade) * 0.1, 1);
-	if ($grade >= 84)   return number_format(2.1 + (88 - $grade) * 0.1, 1);
-	if ($grade >= 79)   return number_format(2.6 + (83 - $grade) * 0.1, 1);
-	if ($grade >= 75)   return number_format(3.1 + (78 - $grade) * 0.1, 1);
-	if ($grade >= 69)   return number_format(3.6 + (74 - $grade) * 0.1, 1);
-	return '5.0';
-}
-
-// Build rows
-$rows      = [];
-$passcount = 0;
-$failcount = 0;
-
-foreach ($students as $student) {
-    if (is_siteadmin($student->id)) continue;
-    $roles     = get_user_roles($context, $student->id);
-    $isteacher = false;
-    foreach ($roles as $role) {
-        if ($role->shortname === 'teacher' || $role->shortname === 'editingteacher') {
-            $isteacher = true; break;
-        }
-    }
-    if ($isteacher) continue;
-
-    // Init category totals
-    $cattotals = [];
-    foreach ($categories as $cat) {
-        $cattotals[$cat->id] = ['total' => 0, 'count' => 0, 'weight' => $cat->weight, 'name' => $cat->name];
-    }
-
-    $midTotal = 0; $midCount = 0;
-    $finTotal = 0; $finCount = 0;
-
-    foreach ($gitems as $gitem) {
-        $ggrade = $DB->get_record('grade_grades', ['itemid' => $gitem->id, 'userid' => $student->id]);
-        $val    = ($ggrade && $ggrade->finalgrade !== null) ? floatval($ggrade->finalgrade) : 0;
-        $max    = floatval($gitem->grademax);
-        if ($max > 0 && $max != 100) $val = ($val / $max) * 100;
-
-        $map    = $DB->get_record('local_gradesheet_itemmap', ['courseid' => $courseid, 'gradeitemid' => $gitem->id]);
-        $period = $map ? $map->period     : 'finals';
-        $catid  = $map ? $map->categoryid : 0;
-
-        if ($catid && isset($cattotals[$catid])) {
-            $cattotals[$catid]['total'] += $val;
-            $cattotals[$catid]['count']++;
-        }
-
-        if ($period === 'midterm') { $midTotal += $val; $midCount++; }
-        else                       { $finTotal += $val; $finCount++; }
-    }
-
-    // Compute weighted final
-    $weightedFinal = 0;
-    $totalWeight   = 0;
-    foreach ($cattotals as $data) {
-        if ($data['count'] > 0) {
-            $weightedFinal += ($data['total'] / $data['count']) * ($data['weight'] / 100);
-            $totalWeight   += $data['weight'];
-        }
-    }
-
-    $midAvg = $midCount > 0 ? $midTotal / $midCount : 0;
-	$finAvg = $finCount > 0 ? $finTotal / $finCount : 0;
-	if ($totalWeight == 0) {
-		$weightedFinal = ($midAvg * $midweight) + ($finAvg * $finweight);
-	}
-
-	
-
-	$midTransmuted = transmute_equiv($midAvg);
-	$finTransmuted = transmute_equiv($finAvg);
-	$avgTransmuted = transmute_equiv($weightedFinal);
-
-    $remarks = $weightedFinal >= 75 ? 'Passed' : 'Failed';
-    if ($remarks === 'Passed') $passcount++; else $failcount++;
-
-    $row = [
-        'idnumber'   => $student->idnumber,
-        'name'       => $student->lastname . ', ' . $student->firstname,
-        'midterm'    => $midTransmuted,
-        'finals'     => $finTransmuted,
-        'average'    => $avgTransmuted,
-        'remarks'    => $remarks,
-        'cattotals'  => $cattotals,
-    ];
-    $rows[] = $row;
-}
-
-$total    = $passcount + $failcount;
-$passrate = $total > 0 ? round(($passcount / $total) * 100, 1) : 0;
+$rows = $data['rows'];
 
 class gradesheet_pdf extends pdf {
     public $report = [];
@@ -182,7 +49,6 @@ class gradesheet_pdf extends pdf {
     }
 }
 
-// ── GENERATE PDF ──────────────────────────────────────────────────────────────
 $pdf = new gradesheet_pdf('P', 'mm', 'A4', true, 'UTF-8', false);
 $pdf->SetCreator('ESSU Grade Sheet Plugin');
 $pdf->SetTitle('Report of Grades - ' . $coursename);
@@ -200,19 +66,7 @@ $pdf->report = [
     'courseandyear' => $courseandyear,
     'schedule'      => $schedule,
     'units'         => $units,
-    'legend'        => [
-        ['100',   '1.0',     'Outstanding'],
-        ['94-90', '1.1-1.5', 'Excellent'],
-        ['89-85', '1.6-2.0', 'Very Good'],
-        ['84-80', '2.1-2.5', 'Good'],
-        ['79-75', '2.6-3.0', 'Fair'],
-        ['74-70', '3.1-3.5', 'Conditional'],
-        ['69-55', '3.6-5.0', 'Failed'],
-        ['INC',   'INC',     'Incomplete'],
-        ['Dr',    'Dr',      'Dropped'],
-        ['WP',    'WP',      'Withdrawn w/ permission'],
-        ['IP',    'IP',      'In Progress'],
-    ],
+    'legend'        => helper::get_rating_legend(),
 ];
 $pdf->AddPage();
 
@@ -259,7 +113,6 @@ foreach ($pdf->report['legend'] as $lrow) {
 
 $pdf->Ln(4);
 
-// Default Midterm/Finals
 $col = [10, 60, 28, 20, 20, 20, 22];
 
 $headers = ['NO.', 'NAME OF STUDENTS', 'STUDENT NO.', 'MIDTERM', 'FINALS', 'AVERAGE', 'REMARKS'];
@@ -270,7 +123,6 @@ foreach ($headers as $i => $h) {
 }
 $pdf->Ln();
 
-// ── DATA ROWS ─────────────────────────────────────────────────────────────────
 $pdf->SetFont('helvetica', '', 8);
 $signatureblockheight = 58;
 $tailheight = 6 + 2 + $signatureblockheight;
@@ -304,7 +156,6 @@ foreach ($rows as $i => $row) {
     $pdf->SetTextColor(0, 0, 0);
 }
 
-// Nothing follows row
 $pdf->SetFont('helvetica', 'I', 8);
 $pdf->Cell($col[0], 6, '',                     1, 0, 'C');
 $pdf->Cell($col[1], 6, '***Nothing Follows***', 1, 0, 'L');
@@ -313,7 +164,6 @@ $pdf->Ln();
 
 $pdf->Ln(4);
 
-// ── SIGNATURES ────────────────────────────────────────────────────────────────
 $pdf->SetFont('helvetica', 'I', 9);
 $pdf->Cell(90, 3, 'Certified True & Correct:', 0, 0);
 $pdf->Cell(0,  3, 'Checked:', 0, 1);
