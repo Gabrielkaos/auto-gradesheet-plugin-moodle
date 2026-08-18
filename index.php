@@ -13,8 +13,14 @@ if ($courseid > 0) {
     helper::ensure_course_defaults($courseid);
 }
 
-$PAGE->set_url('/local/gradesheet/index.php');
-$PAGE->set_context(context_system::instance());
+$PAGE->set_url('/local/gradesheet/index.php', $courseid > 0 ? ['courseid' => $courseid] : []);
+
+if ($courseid > 0) {
+    $PAGE->set_context(context_course::instance($courseid));
+} else {
+    $PAGE->set_context(context_system::instance());
+}
+
 $PAGE->set_title(get_string('pluginname', 'local_gradesheet'));
 $PAGE->set_heading(get_string('pluginname', 'local_gradesheet'));
 
