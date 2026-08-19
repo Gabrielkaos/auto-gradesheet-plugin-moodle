@@ -214,7 +214,44 @@ if ($courseid) {
         echo '<a href="export_excel.php?courseid=' . $courseid . '" class="btn btn-warning mb-3' . $btncls . '">Download Excel</a> ';
         echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-secondary mb-3">Settings</a>';
 
-        echo '<table class="table table-bordered table-striped">';
+        echo '<div class="row align-items-end mb-3">';
+
+        echo '<div class="col-md-5 mb-2">';
+        echo '<label class="small text-muted mb-1" for="gradesheetStudentSearch">Search</label>';
+        echo '<div class="input-group">';
+        echo '<div class="input-group-prepend"><span class="input-group-text">&#128269;</span></div>';
+        echo '<input type="text" id="gradesheetStudentSearch" class="form-control" placeholder="Search by name or student ID..." onkeyup="gradesheetFilterStudents()" autocomplete="off">';
+        echo '</div>';
+        echo '</div>';
+
+        echo '<div class="col-md-3 mb-2">';
+        echo '<label class="small text-muted mb-1" for="gradesheetRemarksFilter">Remarks</label>';
+        echo '<select id="gradesheetRemarksFilter" class="form-control" onchange="gradesheetFilterStudents()">';
+        echo '<option value="">All Remarks</option>';
+        echo '<option value="passed">Passed</option>';
+        echo '<option value="failed">Failed</option>';
+        echo '</select>';
+        echo '</div>';
+
+        echo '<div class="col-md-3 mb-2">';
+        echo '<label class="small text-muted mb-1" for="gradesheetStatusFilter">Status</label>';
+        echo '<select id="gradesheetStatusFilter" class="form-control" onchange="gradesheetFilterStudents()">';
+        echo '<option value="">All Statuses</option>';
+        foreach ($statusoptions as $val => $label) {
+            $optval = ($val === '') ? 'active' : $val;
+            echo '<option value="' . s($optval) . '">' . s($label) . '</option>';
+        }
+        echo '</select>';
+        echo '</div>';
+
+        echo '<div class="col-md-1 mb-2">';
+        echo '<button type="button" class="btn btn-outline-secondary btn-block" onclick="gradesheetResetFilters()" title="Clear filters">&#10005;</button>';
+        echo '</div>';
+
+        echo '<div class="col-12"><small class="form-text text-muted" id="gradesheetSearchCount"></small></div>';
+        echo '</div>';
+
+        echo '<table class="table table-bordered table-striped" id="gradesheetStudentTable">';
         echo '<thead class="thead-dark"><tr>';
         echo '<th>#</th><th>Student ID</th><th>Student Name</th>';
 
@@ -235,13 +272,15 @@ if ($courseid) {
 
         foreach ($students as $student) {
             $curstatus = $statusmap[$student->id] ?? '';
+            $searchkey = strtolower($student->idnumber . ' ' . $student->lastname . ' ' . $student->firstname);
+            $statuskey = ($curstatus === '') ? 'active' : $curstatus;
 
-            echo "<tr>
+            if ($curstatus !== '') {
+                echo "<tr data-gs-search='" . s($searchkey) . "' data-gs-remarks='' data-gs-status='" . s($statuskey) . "'>
                 <td>{$rownum}</td>
                 <td>{$student->idnumber}</td>
                 <td>{$student->lastname}, {$student->firstname}</td>";
 
-            if ($curstatus !== '') {
                 // Faculty override: show dashes across the board instead of computed grades.
                 $othercount++;
                 $numcols = count($categories);
@@ -253,6 +292,12 @@ if ($courseid) {
             } else {
                 $g          = helper::compute_student_grades($courseid, $student->id, $midweight, $finweight);
                 $badgeclass = $g['remarks'] === 'PASSED' ? 'badge-success' : 'badge-danger';
+                $remarkskey = strtolower($g['remarks']); // 'passed' or 'failed'
+
+                echo "<tr data-gs-search='" . s($searchkey) . "' data-gs-remarks='" . s($remarkskey) . "' data-gs-status='" . s($statuskey) . "'>
+                <td>{$rownum}</td>
+                <td>{$student->idnumber}</td>
+                <td>{$student->lastname}, {$student->firstname}</td>";
 
                 if ($g['remarks'] === 'PASSED') $passcount++;
                 else $failcount++;
@@ -294,6 +339,7 @@ if ($courseid) {
         }
 
         echo '</tbody></table>';
+        echo '<div id="gradesheetNoResults" class="alert alert-info" style="display:none">No students match your search.</div>';
 
         $total    = $passcount + $failcount;
         $passrate = $total > 0 ? round(($passcount / $total) * 100, 1) : 0;
@@ -314,6 +360,51 @@ if ($courseid) {
                 <div class='progress-bar bg-danger'  style='width:{$failrate}%'>{$failrate}% Failed</div>
               </div>";
         echo '</div></div>';
+
+        echo '<script>
+        (function() {
+            var input = document.getElementById("gradesheetStudentSearch");
+            if (!input) { return; }
+            var remarksSelect = document.getElementById("gradesheetRemarksFilter");
+            var statusSelect  = document.getElementById("gradesheetStatusFilter");
+            var table = document.getElementById("gradesheetStudentTable");
+            var rows  = table.querySelectorAll("tbody tr");
+            var noResults = document.getElementById("gradesheetNoResults");
+            var countLabel = document.getElementById("gradesheetSearchCount");
+
+            window.gradesheetFilterStudents = function() {
+                var q = input.value.trim().toLowerCase();
+                var remarksWant = remarksSelect.value;
+                var statusWant  = statusSelect.value;
+                var visible = 0;
+
+                rows.forEach(function(row) {
+                    var key     = row.getAttribute("data-gs-search")  || "";
+                    var remarks = row.getAttribute("data-gs-remarks") || "";
+                    var status  = row.getAttribute("data-gs-status")  || "";
+
+                    var matchesSearch  = q === "" || key.indexOf(q) !== -1;
+                    var matchesRemarks = remarksWant === "" || remarks === remarksWant;
+                    var matchesStatus  = statusWant === "" || status === statusWant;
+                    var match = matchesSearch && matchesRemarks && matchesStatus;
+
+                    row.style.display = match ? "" : "none";
+                    if (match) { visible++; }
+                });
+
+                var filtersActive = (q !== "" || remarksWant !== "" || statusWant !== "");
+                noResults.style.display = (visible === 0) ? "" : "none";
+                countLabel.textContent = filtersActive ? ("Showing " + visible + " of " + rows.length + " students") : "";
+            };
+
+            window.gradesheetResetFilters = function() {
+                input.value = "";
+                remarksSelect.value = "";
+                statusSelect.value = "";
+                gradesheetFilterStudents();
+            };
+        })();
+        </script>';
     }
 } else {
     echo '<hr>';
