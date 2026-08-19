@@ -18,6 +18,16 @@ $courseid = required_param('courseid', PARAM_INT);
 $context  = context_course::instance($courseid);
 require_capability('local/gradesheet:manage', $context);
 
+$weightvalid = helper::validate_weight_sum($courseid);
+if (!$weightvalid['valid']) {
+    redirect(
+        new moodle_url('/local/gradesheet/index.php', ['courseid' => $courseid]),
+        'Cannot export: Category weights must sum to exactly 100% (currently ' . $weightvalid['total'] . '%). Please fix this in Settings.',
+        null,
+        \core\output\notification::NOTIFY_ERROR
+    );
+}
+
 $data = gradesheet_service::compute_all_grades($courseid);
 extract($data);
 

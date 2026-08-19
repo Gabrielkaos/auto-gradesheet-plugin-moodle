@@ -84,6 +84,7 @@ if ($courseid) {
 
     $categories = $DB->get_records('local_gradesheet_categories',
         ['courseid' => $courseid], 'sortorder ASC');
+    $weightvalid = helper::validate_weight_sum($courseid);
 
     if ($isstudent && !$isadmin) {
         $grades = helper::compute_student_grades($courseid, $USER->id, $midweight, $finweight);
@@ -192,9 +193,25 @@ if ($courseid) {
 
         echo '<hr>';
         echo "<h4>Students and Grades - {$coursename}</h4>";
-        echo '<a href="preview.php?courseid='      . $courseid . '" class="btn btn-primary mb-3">Preview & Print</a> ';
-        echo '<a href="export.php?courseid='       . $courseid . '" class="btn btn-success mb-3">Download PDF</a> ';
-        echo '<a href="export_excel.php?courseid=' . $courseid . '" class="btn btn-warning mb-3">Download Excel</a> ';
+
+        if (!$weightvalid['valid']) {
+            echo '<div class="alert alert-danger d-flex align-items-center" role="alert" style="font-size:16px; padding:15px 20px;">';
+            echo '<span style="font-size:28px; margin-right:12px;">&#9888;</span>';
+            echo '<div>';
+            echo '<strong>WARNING:</strong> Category weights must sum to exactly <strong>100%</strong>. ';
+            echo 'Current total: <strong>' . $weightvalid['total'] . '%</strong>. ';
+            if ($weightvalid['count'] === 0) {
+                echo 'You have <strong>no categories</strong> defined. ';
+            }
+            echo 'Printing and exporting are <strong>disabled</strong> until this is corrected. ';
+            echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-light btn-sm ml-2"><strong>Go to Settings</strong></a>';
+            echo '</div></div>';
+        }
+
+        $btncls = $weightvalid['valid'] ? '' : ' disabled';
+        echo '<a href="preview.php?courseid='      . $courseid . '" class="btn btn-primary mb-3' . $btncls . '">Preview & Print</a> ';
+        echo '<a href="export.php?courseid='       . $courseid . '" class="btn btn-success mb-3' . $btncls . '">Download PDF</a> ';
+        echo '<a href="export_excel.php?courseid=' . $courseid . '" class="btn btn-warning mb-3' . $btncls . '">Download Excel</a> ';
         echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-secondary mb-3">Settings</a>';
 
         echo '<table class="table table-bordered table-striped">';

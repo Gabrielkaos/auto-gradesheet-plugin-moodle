@@ -2,6 +2,8 @@
 require_once('../../config.php');
 require_once($CFG->libdir.'/formslib.php');
 
+use local_gradesheet\helper;
+
 require_login();
 
 $courseid = required_param('courseid', PARAM_INT);
@@ -204,6 +206,7 @@ $editcategory = $editcatid ? $DB->get_record('local_gradesheet_categories', ['id
 
 $totalweight = 0;
 foreach ($categories as $cat) $totalweight += $cat->weight;
+$weightvalid = helper::validate_weight_sum($courseid);
 
 $mappings = [];
 $maps = $DB->get_records('local_gradesheet_itemmap', ['courseid' => $courseid]);
@@ -318,6 +321,20 @@ echo $OUTPUT->header();
                 <div class="alert alert-success"><?php echo $catsuccess; ?></div>
             <?php endif; ?>
 
+            <?php if (!$weightvalid['valid']): ?>
+            <div class="alert alert-danger d-flex align-items-center" role="alert" style="font-size:16px; padding:15px 20px;">
+                <span style="font-size:28px; margin-right:12px;">&#9888;</span>
+                <div>
+                    <strong>WARNING:</strong> Category weights must sum to exactly <strong>100%</strong>.
+                    Current total: <strong><?php echo $totalweight; ?>%</strong>
+                    <?php if ($weightvalid['count'] === 0): ?>
+                        &mdash; You have <strong>no categories</strong> defined.
+                    <?php endif; ?>
+                    <br>You <strong>will not</strong> be able to print or export grades until this is corrected.
+                </div>
+            </div>
+            <?php endif; ?>
+
             <p class="text-muted">Define the grading components and their percentage weights. Total must equal <strong>100%</strong>.</p>
 
             <!-- Existing categories -->
@@ -371,13 +388,19 @@ echo $OUTPUT->header();
                     </tr>
                     <?php endif; ?>
                     <?php endforeach; ?>
-                    <tr class="<?php echo abs($totalweight - 100) < 0.01 ? 'table-success' : 'table-danger'; ?>">
-                        <td><strong>Total</strong></td>
-                        <td><strong><?php echo $totalweight; ?>%
-                            <?php echo abs($totalweight - 100) < 0.01 ? ' total' : ' total must be 100%'; ?>
-                        </strong></td>
+                    <?php if ($weightvalid['valid']): ?>
+                    <tr class="table-success">
+                        <td><strong>&#10003; Total</strong></td>
+                        <td><strong><?php echo $totalweight; ?>% &mdash; valid</strong></td>
                         <td></td>
                     </tr>
+                    <?php else: ?>
+                    <tr class="table-danger">
+                        <td><strong>&#9888; Total</strong></td>
+                        <td><strong><?php echo $totalweight; ?>% &mdash; must be 100%</strong></td>
+                        <td></td>
+                    </tr>
+                    <?php endif; ?>
                 </tbody>
             </table>
             <?php endif; ?>

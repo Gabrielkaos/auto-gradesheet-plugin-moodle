@@ -22,6 +22,28 @@ extract($data);
 
 $rows = $data['rows'];
 
+$weightvalid = helper::validate_weight_sum($courseid);
+if (!$weightvalid['valid']) {
+    echo $OUTPUT->header();
+    echo '<div class="container mt-4">';
+    echo '<div class="alert alert-danger d-flex align-items-center" role="alert" style="font-size:16px; padding:20px 25px;">';
+    echo '<span style="font-size:36px; margin-right:15px;">&#9888;</span>';
+    echo '<div>';
+    echo '<strong>Cannot Preview Grade Sheet</strong><br>';
+    echo 'Category weights must sum to exactly <strong>100%</strong>. ';
+    echo 'Current total: <strong>' . $weightvalid['total'] . '%</strong>. ';
+    if ($weightvalid['count'] === 0) {
+        echo 'No categories are defined.<br>';
+    }
+    echo 'Please fix this in Settings before printing.';
+    echo '</div></div>';
+    echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-primary">Go to Settings</a> ';
+    echo '<a href="index.php?courseid=' . $courseid . '" class="btn btn-secondary">Back to Grade Sheet</a>';
+    echo '</div>';
+    echo $OUTPUT->footer();
+    exit;
+}
+
 $PAGE->set_url('/local/gradesheet/preview.php', ['courseid' => $courseid]);
 $PAGE->set_context($context);
 $PAGE->set_title('Report of Grades — ' . $coursename);

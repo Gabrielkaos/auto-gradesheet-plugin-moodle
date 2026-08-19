@@ -286,6 +286,24 @@ class helper {
         ];
     }
 
+    /**
+     * Validate that category weights sum to 100% and at least one category exists.
+     * Returns ['valid' => bool, 'total' => float, 'count' => int].
+     */
+    public static function validate_weight_sum(int $courseid): array {
+        global $DB;
+        $categories = $DB->get_records('local_gradesheet_categories', ['courseid' => $courseid]);
+        $total = 0;
+        foreach ($categories as $cat) {
+            $total += $cat->weight;
+        }
+        return [
+            'valid' => count($categories) > 0 && abs($total - 100) < 0.01,
+            'total' => $total,
+            'count' => count($categories),
+        ];
+    }
+
     public static function get_rating_legend(): array {
         return [
             ['100',   '1.0',     'Outstanding'],
