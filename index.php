@@ -222,12 +222,9 @@ if ($courseid) {
             foreach ($categories as $cat) {
                 echo '<th>' . s($cat->name) . ' (' . $cat->weight . '%)</th>';
             }
-        } else {
-            echo '<th>Midterm (' . $mpct . '%)</th>';
-            echo '<th>Finals (' . $fpct . '%)</th>';
         }
 
-        echo '<th>Average</th><th>Transmuted</th><th>Remarks</th><th>Status</th>';
+        echo '<th>Midterm</th><th>Finals</th><th>Average</th><th>Remarks</th><th>Status</th>';
         echo '</tr></thead>';
         echo '<tbody>';
 
@@ -247,11 +244,11 @@ if ($courseid) {
             if ($curstatus !== '') {
                 // Faculty override: show dashes across the board instead of computed grades.
                 $othercount++;
-                $numcols = !empty($categories) ? count($categories) : 2;
+                $numcols = count($categories);
                 for ($c = 0; $c < $numcols; $c++) {
                     echo '<td>-</td>';
                 }
-                echo '<td>-</td><td>-</td>';
+                echo '<td>-</td><td>-</td><td>-</td>';
                 echo '<td><span class="badge badge-secondary">' . s(helper::status_label($curstatus)) . '</span></td>';
             } else {
                 $g          = helper::compute_student_grades($courseid, $student->id, $midweight, $finweight);
@@ -264,17 +261,15 @@ if ($courseid) {
                     foreach ($categories as $cat) {
                         $catdata = isset($g['cattotals'][$cat->id]) ? $g['cattotals'][$cat->id] : null;
                         $catavg  = ($catdata && $catdata['count'] > 0)
-                            ? number_format($catdata['total'] / $catdata['count'], 2)
-                            : '0.00';
+                            ? helper::transmute_equiv($catdata['total'] / $catdata['count'])
+                            : '-';
                         echo "<td>{$catavg}</td>";
                     }
-                } else {
-                    echo '<td>' . number_format($g['midterm'], 2) . '</td>';
-                    echo '<td>' . number_format($g['finals'],  2) . '</td>';
                 }
 
-                echo '<td>' . number_format($g['average'],   2) . '</td>';
-                echo '<td><strong>' . $g['transmuted'] . '</strong></td>';
+                echo '<td>' . helper::transmute_equiv($g['midterm']) . '</td>';
+                echo '<td>' . helper::transmute_equiv($g['finals']) . '</td>';
+                echo '<td>' . $g['transmuted'] . '</td>';
                 echo '<td><span class="badge ' . $badgeclass . '">' . $g['remarks'] . '</span></td>';
             }
 
