@@ -44,10 +44,35 @@ if (!$weightvalid['valid']) {
     exit;
 }
 
-$PAGE->set_url('/local/gradesheet/preview.php', ['courseid' => $courseid]);
-$PAGE->set_context($context);
 $PAGE->set_title('Report of Grades — ' . $coursename);
 $PAGE->set_heading('Report of Grades Preview');
+
+// ── PAGINATION ──────────────────────────────────────────────────────────
+// Split students across multiple A4-sized "pages" instead of one giant
+// continuous sheet. Every page now carries its own full signature block,
+// so both constants can use the same, slightly smaller, row budget.
+// Tune these if rows overflow/underflow a printed page in your browser.
+$rowsperpage    = 20; // Max student rows per page (all pages now include signatures).
+$rowsonlastpage = 20; // Kept separate in case you want the last page to differ later.
+
+$totalrows = count($rows);
+$pages = [];
+
+if ($totalrows <= $rowsonlastpage) {
+    $pages[] = $rows;
+} else {
+    $offset    = 0;
+    $remaining = $totalrows;
+    while ($remaining > $rowsonlastpage) {
+        $take = min($rowsperpage, $remaining - $rowsonlastpage);
+        $pages[] = array_slice($rows, $offset, $take);
+        $offset    += $take;
+        $remaining -= $take;
+    }
+    $pages[] = array_slice($rows, $offset);
+}
+
+$totalpages = count($pages);
 
 echo $OUTPUT->header();
 ?>
@@ -63,15 +88,30 @@ echo $OUTPUT->header();
     justify-content: space-between;
     align-items: center;
 }
-.gradesheet-wrapper {
+.gradesheet-pages {
+    background: #e9ebee;
+    padding: 30px 0;
+}
+.gradesheet-page {
     background: white;
     border: 1px solid #ccc;
     box-shadow: 0 4px 15px rgba(0,0,0,0.15);
     padding: 30px 35px;
     max-width: 794px;
+    min-height: 1123px;
     margin: 0 auto 40px auto;
     font-family: Arial, sans-serif;
     font-size: 10px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+}
+.gs-page-label {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 9px;
+    color: #999;
 }
 .gs-info-legend { display: flex; gap: 10px; margin-bottom: 12px; }
 .gs-info { flex: 1; font-size: 9.5px; }
@@ -93,16 +133,22 @@ echo $OUTPUT->header();
 .gs-sig-label { font-style: italic; margin-bottom: 4px; }
 .gs-sig-name { font-weight: bold; text-align: center; margin-top: 8px; }
 .gs-sig-title { text-align: center; font-style: italic; font-size: 8.5px; }
-.gs-footer { border-top: 1px solid #333; margin-top: 20px; padding-top: 4px;
+.gs-footer { border-top: 1px solid #333; margin-top: auto; padding-top: 4px;
              display: flex; justify-content: space-between; font-size: 8px; color: #333; }
 @media print {
     body * { visibility: hidden; }
-    .gradesheet-wrapper, .gradesheet-wrapper * { visibility: visible; }
-    .gradesheet-wrapper {
-        position: absolute; left: 0; top: 0;
+    .gradesheet-page, .gradesheet-page * { visibility: visible; }
+    .gradesheet-pages { background: none; padding: 0; }
+    .gradesheet-page {
+        position: relative;
         box-shadow: none; border: none;
         padding: 15mm 20mm; max-width: 100%; width: 100%;
+        min-height: 100vh;
+        margin: 0;
+        page-break-after: always;
     }
+    .gradesheet-page:last-child { page-break-after: auto; }
+    .gs-page-label { display: none; }
     .gs-table tr:nth-child(even) td { background: white !important; }
 }
 </style>
@@ -111,6 +157,7 @@ echo $OUTPUT->header();
     <div>
         <strong>Report of Grades Preview</strong>
         <span class="text-muted ml-2">- <?php echo $coursename; ?></span>
+        <span class="text-muted ml-2">(<?php echo $totalpages; ?> page<?php echo $totalpages === 1 ? '' : 's'; ?>)</span>
     </div>
     <div>
         <a href="index.php?courseid=<?php echo $courseid; ?>" class="btn btn-secondary btn-sm">← Back</a>
@@ -120,7 +167,14 @@ echo $OUTPUT->header();
     </div>
 </div>
 
-<div class="gradesheet-wrapper">
+<div class="gradesheet-pages">
+<?php
+$rownum = 1;
+foreach ($pages as $pageindex => $pagerows):
+    $islastpage = ($pageindex === $totalpages - 1);
+?>
+<div class="gradesheet-page">
+    <div class="gs-page-label">Page <?php echo $pageindex + 1; ?> of <?php echo $totalpages; ?></div>
 
     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px; width:100%;">
         <img src="<?php echo $CFG->wwwroot; ?>/local/gradesheet/pix/essu-header.png" style="width:160px; height:auto;">
@@ -170,10 +224,10 @@ echo $OUTPUT->header();
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($rows as $i => $row): ?>
+            <?php foreach ($pagerows as $row): ?>
             <?php $isfailed = ($row['remarks'] !== 'Passed'); ?>
             <tr>
-                <td class="<?php echo $isfailed ? 'failed-cell' : ''; ?>"><?php echo $i + 1; ?></td>
+                <td class="<?php echo $isfailed ? 'failed-cell' : ''; ?>"><?php echo $rownum++; ?></td>
                 <td class="name-col"><?php echo htmlspecialchars($row['name']); ?></td>
                 <td><?php echo htmlspecialchars($row['idnumber']); ?></td>
                 <td><?php echo $row['midterm']; ?></td>
@@ -182,6 +236,7 @@ echo $OUTPUT->header();
                 <td class="<?php echo $isfailed ? 'failed-cell' : ''; ?>"><?php echo $row['remarks']; ?></td>
             </tr>
             <?php endforeach; ?>
+            <?php if ($islastpage): ?>
             <tr>
                 <td></td>
                 <td class="name-col"><em>***Nothing Follows***</em></td>
@@ -189,6 +244,7 @@ echo $OUTPUT->header();
                 <td></td><td></td>
                 <td></td><td></td>
             </tr>
+            <?php endif; ?>
         </tbody>
     </table>
 
@@ -221,9 +277,11 @@ echo $OUTPUT->header();
 
     <div class="gs-footer">
         <span>ESSU-ACAD-712.b &nbsp;|&nbsp; Version 5<br>Effectivity Date: March 15, 2024</span>
-        <span>Page 1 of 1</span>
+        <span>Page <?php echo $pageindex + 1; ?> of <?php echo $totalpages; ?></span>
     </div>
 
+</div>
+<?php endforeach; ?>
 </div>
 
 <?php echo $OUTPUT->footer(); ?>
