@@ -149,7 +149,7 @@ echo $OUTPUT->header();
         </thead>
         <tbody>
             <?php foreach ($rows as $i => $row): ?>
-            <?php $isfailed = ($row['remarks'] === 'Failed'); ?>
+            <?php $isfailed = ($row['remarks'] !== 'Passed'); ?>
             <tr>
                 <td class="<?php echo $isfailed ? 'failed-cell' : ''; ?>"><?php echo $i + 1; ?></td>
                 <td class="name-col"><?php echo htmlspecialchars($row['name']); ?></td>

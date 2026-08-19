@@ -140,7 +140,7 @@ foreach ($rows as $i => $row) {
     $fill = ($i % 2 === 0);
     $pdf->SetFillColor(245, 245, 245);
 
-    $isFailed = ($row['remarks'] === 'Failed');
+    $isFailed = ($row['remarks'] !== 'Passed');
     $pdf->SetTextColor(0, 0, 0);
 
     if ($isFailed) $pdf->SetTextColor(180, 0, 0);

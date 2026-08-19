@@ -7,6 +7,18 @@ require_login();
 
 use local_gradesheet\helper;
 
+// ── HANDLE STATUS UPDATE (faculty setting Incomplete/Dropped/WP/In Progress) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && optional_param('action', '', PARAM_TEXT) === 'setstatus') {
+    $scourseid = required_param('courseid', PARAM_INT);
+    $studentid = required_param('studentid', PARAM_INT);
+    $status    = optional_param('status', '', PARAM_ALPHA);
+
+    require_capability('local/gradesheet:manage', context_course::instance($scourseid));
+    helper::set_student_status($scourseid, $studentid, $status);
+
+    redirect(new moodle_url('/local/gradesheet/index.php', ['courseid' => $scourseid]));
+}
+
 $courseid = optional_param('courseid', 0, PARAM_INT);
 
 if ($courseid > 0) {
@@ -75,8 +87,15 @@ if ($courseid) {
 
     if ($isstudent && !$isadmin) {
         $grades = helper::compute_student_grades($courseid, $USER->id, $midweight, $finweight);
-        $color  = $grades['remarks'] === 'PASSED' ? '#155724' : '#721c24';
-        $bg     = $grades['remarks'] === 'PASSED' ? '#d4edda' : '#f8d7da';
+        $mystatus = helper::get_student_status($courseid, $USER->id);
+
+        if ($mystatus !== '') {
+            $color = '#555';
+            $bg    = '#e2e3e5';
+        } else {
+            $color  = $grades['remarks'] === 'PASSED' ? '#155724' : '#721c24';
+            $bg     = $grades['remarks'] === 'PASSED' ? '#d4edda' : '#f8d7da';
+        }
 
         echo '<hr>';
         echo "<h4>My Grades - {$coursename}</h4>";
@@ -117,7 +136,12 @@ if ($courseid) {
                 <span class="grade-value">' . $coursename . '</span>
               </div>';
 
-        if (!empty($categories)) {
+        if ($mystatus !== '') {
+            echo '<div class="grade-row">
+                    <span class="grade-label">Status</span>
+                    <span class="grade-value">' . s(helper::status_label($mystatus)) . '</span>
+                  </div>';
+        } else if (!empty($categories)) {
             foreach ($grades['cattotals'] as $catid => $data) {
                 if ($data['count'] > 0) {
                     $catAvg = $data['total'] / $data['count'];
@@ -138,18 +162,20 @@ if ($courseid) {
                   </div>';
         }
 
-        echo '<div class="grade-row" style="background:#f8f9fa">
-                <span class="grade-label">Final Average</span>
-                <span class="grade-value">' . number_format($grades['average'], 2) . '</span>
-              </div>';
-        echo '<div class="grade-row" style="background:#f8f9fa">
-                <span class="grade-label">Transmuted Grade</span>
-                <span class="grade-value" style="font-size:18px">' . $grades['transmuted'] . '</span>
-              </div>';
+        if ($mystatus === '') {
+            echo '<div class="grade-row" style="background:#f8f9fa">
+                    <span class="grade-label">Final Average</span>
+                    <span class="grade-value">' . number_format($grades['average'], 2) . '</span>
+                  </div>';
+            echo '<div class="grade-row" style="background:#f8f9fa">
+                    <span class="grade-label">Transmuted Grade</span>
+                    <span class="grade-value" style="font-size:18px">' . $grades['transmuted'] . '</span>
+                  </div>';
+        }
 
         echo '</div></div>';
         echo '<div class="remarks-box" style="background:' . $bg . '; color:' . $color . '">
-                ' . $grades['remarks'] . '
+                ' . ($mystatus !== '' ? s(helper::status_label($mystatus)) : $grades['remarks']) . '
               </div>';
         echo '</div>';
 
@@ -160,7 +186,9 @@ if ($courseid) {
             exit;
         }
 
-        $students = helper::get_non_teaching_students(context_course::instance($courseid));
+        $students  = helper::get_non_teaching_students(context_course::instance($courseid));
+        $statusmap = helper::get_status_map($courseid);
+        $statusoptions = helper::status_options();
 
         echo '<hr>';
         echo "<h4>Students and Grades - {$coursename}</h4>";
@@ -182,42 +210,72 @@ if ($courseid) {
             echo '<th>Finals (' . $fpct . '%)</th>';
         }
 
-        echo '<th>Average</th><th>Transmuted</th><th>Remarks</th>';
+        echo '<th>Average</th><th>Transmuted</th><th>Remarks</th><th>Status</th>';
         echo '</tr></thead>';
         echo '<tbody>';
 
         $passcount = 0;
         $failcount = 0;
+        $othercount = 0;
         $rownum    = 1;
 
         foreach ($students as $student) {
-            $g          = helper::compute_student_grades($courseid, $student->id, $midweight, $finweight);
-            $badgeclass = $g['remarks'] === 'PASSED' ? 'badge-success' : 'badge-danger';
-
-            if ($g['remarks'] === 'PASSED') $passcount++;
-            else $failcount++;
+            $curstatus = $statusmap[$student->id] ?? '';
 
             echo "<tr>
                 <td>{$rownum}</td>
                 <td>{$student->idnumber}</td>
                 <td>{$student->lastname}, {$student->firstname}</td>";
 
-            if (!empty($categories)) {
-                foreach ($categories as $cat) {
-                    $catdata = isset($g['cattotals'][$cat->id]) ? $g['cattotals'][$cat->id] : null;
-                    $catavg  = ($catdata && $catdata['count'] > 0)
-                        ? number_format($catdata['total'] / $catdata['count'], 2)
-                        : '0.00';
-                    echo "<td>{$catavg}</td>";
+            if ($curstatus !== '') {
+                // Faculty override: show dashes across the board instead of computed grades.
+                $othercount++;
+                $numcols = !empty($categories) ? count($categories) : 2;
+                for ($c = 0; $c < $numcols; $c++) {
+                    echo '<td>-</td>';
                 }
+                echo '<td>-</td><td>-</td>';
+                echo '<td><span class="badge badge-secondary">' . s(helper::status_label($curstatus)) . '</span></td>';
             } else {
-                echo '<td>' . number_format($g['midterm'], 2) . '</td>';
-                echo '<td>' . number_format($g['finals'],  2) . '</td>';
+                $g          = helper::compute_student_grades($courseid, $student->id, $midweight, $finweight);
+                $badgeclass = $g['remarks'] === 'PASSED' ? 'badge-success' : 'badge-danger';
+
+                if ($g['remarks'] === 'PASSED') $passcount++;
+                else $failcount++;
+
+                if (!empty($categories)) {
+                    foreach ($categories as $cat) {
+                        $catdata = isset($g['cattotals'][$cat->id]) ? $g['cattotals'][$cat->id] : null;
+                        $catavg  = ($catdata && $catdata['count'] > 0)
+                            ? number_format($catdata['total'] / $catdata['count'], 2)
+                            : '0.00';
+                        echo "<td>{$catavg}</td>";
+                    }
+                } else {
+                    echo '<td>' . number_format($g['midterm'], 2) . '</td>';
+                    echo '<td>' . number_format($g['finals'],  2) . '</td>';
+                }
+
+                echo '<td>' . number_format($g['average'],   2) . '</td>';
+                echo '<td><strong>' . $g['transmuted'] . '</strong></td>';
+                echo '<td><span class="badge ' . $badgeclass . '">' . $g['remarks'] . '</span></td>';
             }
 
-            echo '<td>' . number_format($g['average'],   2) . '</td>';
-            echo '<td><strong>' . $g['transmuted'] . '</strong></td>';
-            echo '<td><span class="badge ' . $badgeclass . '">' . $g['remarks'] . '</span></td>';
+            // Status-setting control — always available regardless of current status.
+            echo '<td>';
+            echo '<form method="post" style="margin:0">';
+            echo '<input type="hidden" name="action" value="setstatus">';
+            echo '<input type="hidden" name="courseid" value="' . $courseid . '">';
+            echo '<input type="hidden" name="studentid" value="' . $student->id . '">';
+            echo '<select name="status" class="form-control form-control-sm" onchange="this.form.submit()">';
+            foreach ($statusoptions as $val => $label) {
+                $sel = ($curstatus === $val) ? 'selected' : '';
+                echo "<option value='{$val}' {$sel}>" . s($label) . "</option>";
+            }
+            echo '</select>';
+            echo '</form>';
+            echo '</td>';
+
             echo '</tr>';
 
             $rownum++;
@@ -233,10 +291,11 @@ if ($courseid) {
         echo '<div class="card-header"><strong>Class Summary</strong></div>';
         echo '<div class="card-body">';
         echo '<div class="row text-center">';
-        echo "<div class='col-md-3'><h4>{$total}</h4><p class='text-muted'>Total Students</p></div>";
-        echo "<div class='col-md-3'><h4 class='text-success'>{$passcount}</h4><p class='text-muted'>Passed ({$passrate}%)</p></div>";
-        echo "<div class='col-md-3'><h4 class='text-danger'>{$failcount}</h4><p class='text-muted'>Failed</p></div>";
-        echo "<div class='col-md-3'><h4>{$passrate}%</h4><p class='text-muted'>Passing Rate</p></div>";
+        echo "<div class='col-md-2'><h4>{$total}</h4><p class='text-muted'>Graded Students</p></div>";
+        echo "<div class='col-md-2'><h4 class='text-success'>{$passcount}</h4><p class='text-muted'>Passed ({$passrate}%)</p></div>";
+        echo "<div class='col-md-2'><h4 class='text-danger'>{$failcount}</h4><p class='text-muted'>Failed</p></div>";
+        echo "<div class='col-md-2'><h4 class='text-secondary'>{$othercount}</h4><p class='text-muted'>Inc/Dropped/WP/IP</p></div>";
+        echo "<div class='col-md-2'><h4>{$passrate}%</h4><p class='text-muted'>Passing Rate</p></div>";
         echo '</div>';
         echo "<div class='progress mt-2' style='height:25px'>
                 <div class='progress-bar bg-success' style='width:{$passrate}%'>{$passrate}% Passed</div>

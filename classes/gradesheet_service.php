@@ -11,6 +11,7 @@ class gradesheet_service {
         $cfg    = helper::load_course_config($courseid);
         $ctx    = \context_course::instance($courseid);
         $students = helper::get_non_teaching_students($ctx);
+        $statusmap = helper::get_status_map($courseid);
 
         $categories = $DB->get_records('local_gradesheet_categories',
             ['courseid' => $courseid], 'sortorder ASC');
@@ -18,8 +19,28 @@ class gradesheet_service {
         $rows      = [];
         $passcount = 0;
         $failcount = 0;
+        $othercount = 0; // Dropped / Incomplete / WP / In Progress — excluded from pass/fail rate.
 
         foreach ($students as $student) {
+            $status = $statusmap[$student->id] ?? '';
+
+            if ($status !== '') {
+                // Faculty-set override: report shows dashes and the status label,
+                // regardless of any numeric grades recorded so far.
+                $othercount++;
+                $rows[] = [
+                    'idnumber'  => $student->idnumber,
+                    'name'      => $student->lastname . ', ' . $student->firstname,
+                    'midterm'   => '-',
+                    'finals'    => '-',
+                    'average'   => '-',
+                    'remarks'   => helper::status_label($status),
+                    'cattotals' => [],
+                    'status'    => $status,
+                ];
+                continue;
+            }
+
             $g = helper::compute_student_grades(
                 $courseid, $student->id, $cfg['midweight'], $cfg['finweight']
             );
@@ -34,15 +55,16 @@ class gradesheet_service {
             $rows[] = [
                 'idnumber'  => $student->idnumber,
                 'name'      => $student->lastname . ', ' . $student->firstname,
-                'midterm'   => helper::transmute_equiv($g['midterm'], $courseid),
-                'finals'    => helper::transmute_equiv($g['finals'], $courseid),
+                'midterm'   => helper::transmute_equiv($g['midterm']),
+                'finals'    => helper::transmute_equiv($g['finals']),
                 'average'   => $g['transmuted'],
                 'remarks'   => $remarks,
                 'cattotals' => $g['cattotals'],
+                'status'    => '',
             ];
         }
 
-        $total    = $passcount + $failcount;
+        $total    = $passcount + $failcount; // Pass rate is computed over graded students only.
         $passrate = $total > 0 ? round(($passcount / $total) * 100, 1) : 0;
 
         return array_merge($cfg, [
@@ -51,6 +73,7 @@ class gradesheet_service {
             'rows'        => $rows,
             'passcount'   => $passcount,
             'failcount'   => $failcount,
+            'othercount'  => $othercount,
             'total'       => $total,
             'passrate'    => $passrate,
         ]);

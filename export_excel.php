@@ -134,7 +134,7 @@ $dataRow = $tableHeaderRow + 1;
 
 foreach ($rows as $i => $row) {
     $evenFill  = ($i % 2 === 0) ? 'F5F5F5' : 'FFFFFF';
-    $isFailed  = ($row['remarks'] === 'Failed');
+    $isFailed  = ($row['remarks'] !== 'Passed');
     $textColor = $isFailed ? 'CC0000' : '000000';
 
     $sheet->setCellValue('A' . $dataRow, $i + 1);
