@@ -1,0 +1,242 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// local_gradesheet test data generator
+// -------------------------------------
+// Creates a test course, several grade items, and N test students with
+// randomized grades, so you can exercise the Grade Sheet Generator plugin
+// with a realistic amount of data.
+//
+// Place this file at: local/gradesheet/cli/generate_testdata.php
+//
+// Usage (run from your Moodle root, as the web server / admin CLI user):
+//   php local/gradesheet/cli/generate_testdata.php --students=100
+//
+// Optional flags:
+//   --students=N         Number of students to create (default 100)
+//   --coursename="..."   Full name for the test course (default "Gradesheet Load Test")
+//   --shortname=...      Shortname for the test course (default auto-generated)
+//   --items=N            Number of grade items to create (default 5)
+//   --delete              Delete the course + test users from a previous run
+//                          (requires --shortname=... of that run), then exit
+//   --help / -h           Show this help
+
+define('CLI_SCRIPT', true);
+
+require(__DIR__ . '/../../../config.php');
+require_once($CFG->libdir . '/clilib.php');
+require_once($CFG->libdir . '/gradelib.php');
+require_once($CFG->libdir . '/grade/grade_item.php');
+require_once($CFG->libdir . '/enrollib.php');
+require_once($CFG->dirroot . '/course/lib.php');
+require_once($CFG->dirroot . '/user/lib.php');
+
+list($options, $unrecognized) = cli_get_params(
+    [
+        'students'   => 100,
+        'coursename' => 'Gradesheet Load Test',
+        'shortname'  => '',
+        'items'      => 5,
+        'delete'     => false,
+        'help'       => false,
+    ],
+    [
+        'h' => 'help',
+    ]
+);
+
+if ($unrecognized) {
+    $unrecognized = implode(', ', $unrecognized);
+    cli_error("Unrecognized options: {$unrecognized}\nRun with --help for usage.");
+}
+
+if ($options['help']) {
+    cli_writeln("Generate a test course + students + grades for local_gradesheet.\n");
+    cli_writeln("Options:");
+    cli_writeln("  --students=N        Number of students to create (default 100)");
+    cli_writeln("  --coursename=\"...\"  Course full name (default 'Gradesheet Load Test')");
+    cli_writeln("  --shortname=...     Course shortname (default auto-generated)");
+    cli_writeln("  --items=N           Number of grade items to create (default 5)");
+    cli_writeln("  --delete            Delete a previously generated course + its test users, then exit");
+    cli_writeln("                      (must be combined with --shortname=... of the run to remove)");
+    exit(0);
+}
+
+$numstudents = max(1, (int) $options['students']);
+$numitems    = max(1, (int) $options['items']);
+$fullname    = $options['coursename'];
+
+// ---------------------------------------------------------------------
+// --delete mode: clean up a previous run and exit.
+// ---------------------------------------------------------------------
+if ($options['delete']) {
+    $shortname = trim($options['shortname']);
+    if ($shortname === '') {
+        cli_error('You must pass --shortname=... (the one printed when the test data was created) to use --delete.');
+    }
+
+    $course = $DB->get_record('course', ['shortname' => $shortname]);
+    if (!$course) {
+        cli_error("No course found with shortname '{$shortname}'.");
+    }
+
+    // Only touch users whose username matches the pattern this script generates,
+    // to avoid ever deleting a real account by accident.
+    $prefix = 'gstest_' . $course->id . '_';
+    $like   = $DB->sql_like('username', ':pattern');
+    $testusers = $DB->get_records_select('user', $like, ['pattern' => $prefix . '%']);
+
+    delete_course($course, false);
+    cli_writeln("Deleted course '{$shortname}' (id {$course->id}).");
+
+    foreach ($testusers as $u) {
+        user_delete_user($u);
+    }
+    cli_writeln('Deleted ' . count($testusers) . ' test student accounts.');
+    exit(0);
+}
+
+$shortname = trim($options['shortname']) !== '' ? trim($options['shortname']) : 'GRADETEST-' . time();
+
+// ---------------------------------------------------------------------
+// 1. Create the course.
+// ---------------------------------------------------------------------
+if ($DB->record_exists('course', ['shortname' => $shortname])) {
+    cli_error("A course with shortname '{$shortname}' already exists. Pick a different --shortname, or run with --delete first.");
+}
+
+$category = $DB->get_record('course_categories', ['id' => 1]);
+if (!$category) {
+    $categories = $DB->get_records('course_categories', null, 'id ASC', '*', 0, 1);
+    $category = reset($categories);
+}
+if (!$category) {
+    cli_error('No course category found. Create at least one category in Moodle first.');
+}
+
+$coursedata = new stdClass();
+$coursedata->fullname      = $fullname;
+$coursedata->shortname     = $shortname;
+$coursedata->category      = $category->id;
+$coursedata->summary       = 'Auto-generated by local_gradesheet cli/generate_testdata.php for load testing.';
+$coursedata->summaryformat = FORMAT_HTML;
+$coursedata->visible       = 1;
+$coursedata->startdate     = time() - (7 * 24 * 3600);
+
+$course   = create_course($coursedata);
+$courseid = $course->id;
+
+cli_writeln("Created course '{$fullname}' (shortname: {$shortname}, id: {$courseid}).");
+
+// ---------------------------------------------------------------------
+// 2. Create grade items.
+// ---------------------------------------------------------------------
+$itemnames = ['Quiz 1', 'Quiz 2', 'Long Exam 1', 'Project', 'Long Exam 2', 'Recitation', 'Seatwork', 'Lab Activity'];
+$createditems = [];
+
+for ($i = 0; $i < $numitems; $i++) {
+    $cycle = intdiv($i, count($itemnames));
+    $name  = $itemnames[$i % count($itemnames)] . ($cycle > 0 ? ' (' . ($cycle + 1) . ')' : '');
+
+    $gradeitem = new grade_item([
+        'courseid'  => $courseid,
+        'itemtype'  => 'manual',
+        'itemname'  => $name,
+        'gradetype' => GRADE_TYPE_VALUE,
+        'grademax'  => 100,
+        'grademin'  => 0,
+    ], false);
+    $gradeitem->insert('local/gradesheet');
+    $createditems[] = $gradeitem;
+
+    cli_writeln("  Grade item created: {$name} (id {$gradeitem->id})");
+}
+
+// ---------------------------------------------------------------------
+// 3. Create the students and enrol them.
+// ---------------------------------------------------------------------
+$studentrole = $DB->get_record('role', ['shortname' => 'student'], '*', MUST_EXIST);
+
+$enrolplugin = enrol_get_plugin('manual');
+$instance = $DB->get_record('enrol', ['courseid' => $courseid, 'enrol' => 'manual']);
+if (!$instance) {
+    $instanceid = $enrolplugin->add_instance($course);
+    $instance = $DB->get_record('enrol', ['id' => $instanceid]);
+}
+
+$firstnames = ['Juan', 'Maria', 'Jose', 'Ana', 'Pedro', 'Rosa', 'Carlos', 'Elena', 'Miguel', 'Sofia',
+               'Antonio', 'Carmen', 'Manuel', 'Isabel', 'Francisco', 'Teresa', 'Ramon', 'Luz', 'Ricardo', 'Grace'];
+$lastnames  = ['Santos', 'Reyes', 'Cruz', 'Bautista', 'Ocampo', 'Garcia', 'Torres', 'Mendoza', 'Castro', 'Villanueva',
+               'Aquino', 'Del Rosario', 'Navarro', 'Domingo', 'Salazar', 'Pascual', 'Gonzales', 'Ramos', 'Flores', 'Fernandez'];
+
+$createdusers = [];
+
+for ($n = 1; $n <= $numstudents; $n++) {
+    $username = 'gstest_' . $courseid . '_' . $n;
+
+    $first = $firstnames[array_rand($firstnames)];
+    $last  = $lastnames[array_rand($lastnames)];
+
+    $user = new stdClass();
+    $user->username   = $username;
+    $user->password    = 'Testpass123!';
+    $user->firstname   = $first;
+    $user->lastname    = $last . ' ' . $n; // Suffix keeps names unique and makes cleanup obvious.
+    $user->email       = $username . '@example.invalid';
+    $user->auth        = 'manual';
+    $user->confirmed   = 1;
+    $user->mnethostid  = $CFG->mnet_localhost_id;
+    $user->idnumber    = sprintf('%02d-%05d', (int) date('y'), $courseid * 1000 + $n);
+
+    $userid = user_create_user($user, true, false);
+    $createdusers[] = $userid;
+
+    $enrolplugin->enrol_user($instance, $userid, $studentrole->id);
+}
+
+cli_writeln("Created and enrolled {$numstudents} test students.");
+
+// ---------------------------------------------------------------------
+// 4. Assign randomized grades for each grade item.
+// ---------------------------------------------------------------------
+foreach ($createditems as $gradeitem) {
+    foreach ($createdusers as $userid) {
+        // Skew toward passing grades but keep a realistic spread: some
+        // missing grades, some failing, most passing.
+        $roll = mt_rand(1, 100);
+        if ($roll <= 5) {
+            $finalgrade = null; // No grade recorded for this item.
+        } else if ($roll <= 15) {
+            $finalgrade = mt_rand(40, 74); // Failing range.
+        } else {
+            $finalgrade = mt_rand(75, 100); // Passing range.
+        }
+
+        if ($finalgrade !== null) {
+            $gradeitem->update_final_grade($userid, $finalgrade, 'local/gradesheet');
+        }
+    }
+}
+
+cli_writeln('Assigned randomized grades across all grade items.');
+
+// ---------------------------------------------------------------------
+// 5. Ensure local_gradesheet defaults (categories, config) exist.
+// ---------------------------------------------------------------------
+\local_gradesheet\helper::ensure_course_defaults($courseid);
+
+cli_writeln('');
+cli_writeln('Done. Test course is ready:');
+cli_writeln("  Course:    {$fullname}");
+cli_writeln("  Shortname: {$shortname}");
+cli_writeln("  Course ID: {$courseid}");
+cli_writeln("  URL:       {$CFG->wwwroot}/local/gradesheet/index.php?courseid={$courseid}");
+cli_writeln('');
+cli_writeln('Next steps:');
+cli_writeln("  1. Visit {$CFG->wwwroot}/local/gradesheet/course_settings.php?courseid={$courseid}");
+cli_writeln('     and map each grade item to a Category and Period (Midterm/Finals),');
+cli_writeln('     since local_gradesheet_itemmap is left empty by this script.');
+cli_writeln('  2. Then preview/export from the Grade Sheet page.');
+cli_writeln('');
+cli_writeln('To remove everything this script created later, run:');
+cli_writeln("  php local/gradesheet/cli/generate_testdata.php --delete --shortname={$shortname}");
