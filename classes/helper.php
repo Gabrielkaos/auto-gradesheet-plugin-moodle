@@ -141,15 +141,48 @@ class helper {
         return $config;
     }
 
-    public static function transmute_equiv($grade) {
-        if ($grade == 0)    return '-';
-        if ($grade == 100)  return '1.0';
-        if ($grade >= 94)   return number_format(1.1 + (99 - $grade) * 0.1, 1);
-        if ($grade >= 89)   return number_format(1.6 + (93 - $grade) * 0.1, 1);
-        if ($grade >= 84)   return number_format(2.1 + (88 - $grade) * 0.1, 1);
-        if ($grade >= 79)   return number_format(2.6 + (83 - $grade) * 0.1, 1);
-        if ($grade >= 75)   return number_format(3.1 + (78 - $grade) * 0.1, 1);
-        if ($grade >= 69)   return number_format(3.6 + (74 - $grade) * 0.1, 1);
+    /**
+     * Transmutes a raw percentage score (0-100) into an ESSU equivalent grade.
+     *
+     * Bands are monotonic: a higher raw score always yields a lower (better)
+     * equivalent. Each band maps linearly between the equivalent shown for its
+     * floor and its ceiling in get_rating_legend().
+     *
+     * @param float|int|null|string $grade Raw score, or null/'' for "no grade".
+     * @return string Equivalent (e.g. '1.0'), '5.0' for failing, or '-' if no grade.
+     */
+    public static function transmute_equiv($grade): string {
+        if ($grade === null || $grade === '' || !is_numeric($grade)) {
+            return '-';
+        }
+
+        $grade = floatval($grade);
+
+        if ($grade < 55) {
+            return '5.0';
+        }
+
+        // [min, max, equiv_at_min (worst), equiv_at_max (best)]
+        $bands = [
+            [100, 100, 1.0, 1.0],   // perfect score
+            [90,  99,  1.5, 1.1],   // 90-99  -> 1.1-1.5
+            [85,  89,  2.0, 1.6],   // 85-89  -> 1.6-2.0
+            [80,  84,  2.5, 2.1],   // 80-84  -> 2.1-2.5
+            [75,  79,  3.0, 2.6],   // 75-79  -> 2.6-3.0
+            [70,  74,  3.5, 3.1],   // 70-74  -> 3.1-3.5
+            [55,  69,  5.0, 3.6],   // 55-69  -> 3.6-5.0
+        ];
+
+        foreach ($bands as [$min, $max, $eqMin, $eqMax]) {
+            if ($grade >= $min && $grade <= $max) {
+                if ($max == $min) {
+                    return number_format($eqMax, 1);
+                }
+                $equiv = $eqMax - (($max - $grade) / ($max - $min)) * ($eqMax - $eqMin);
+                return number_format(round($equiv, 1), 1);
+            }
+        }
+
         return '5.0';
     }
 
@@ -307,7 +340,7 @@ class helper {
     public static function get_rating_legend(): array {
         return [
             ['100',   '1.0',     'Outstanding'],
-            ['94-90', '1.1-1.5', 'Excellent'],
+            ['99-90', '1.1-1.5', 'Excellent'],
             ['89-85', '1.6-2.0', 'Very Good'],
             ['84-80', '2.1-2.5', 'Good'],
             ['79-75', '2.6-3.0', 'Fair'],
