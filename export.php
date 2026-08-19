@@ -78,129 +78,161 @@ $pdf->report = [
     'units'         => $units,
     'legend'        => helper::get_rating_legend($courseid),
 ];
-$pdf->AddPage();
 
-$pdf->SetY(42);
-$pdf->SetFont('helvetica', 'B', 16);
-$pdf->Cell(0, 8, 'REPORT OF GRADES', 0, 1, 'C');
-$pdf->SetFont('helvetica', '', 10);
-$pdf->Cell(0, 6, $semester . '  SY ' . $schoolyear, 0, 1, 'C');
-$pdf->Ln(5);
+// ── PAGINATION ──────────────────────────────────────────────────────────
+// Mirrors preview.php exactly: every "page" gets its own full header,
+// legend, table header, and signature block, capped at 20 student rows.
+$rowsperpage    = 20;
+$rowsonlastpage = 20;
 
-$infoY = $pdf->GetY();
-$pdf->SetFont('helvetica', '', 9);
-$pdf->SetX(15); $pdf->Cell(40, 5, 'Subject and Course No. :', 0, 0);
-$pdf->SetFont('helvetica', 'B', 9); $pdf->Cell(0, 5, $coursenumber, 0, 1);
+$totalrows = count($rows);
+$pages = [];
 
-$pdf->SetFont('helvetica', '', 9);
-$pdf->SetX(15); $pdf->Cell(40, 5, 'Descriptive Title :', 0, 0);
-$pdf->SetFont('helvetica', 'B', 9); $pdf->Cell(0, 5, $descriptive, 0, 1);
-
-$pdf->SetFont('helvetica', '', 9);
-$pdf->SetX(15); $pdf->Cell(40, 5, 'Course and Year :', 0, 0);
-$pdf->Cell(0, 5, $courseandyear, 0, 1);
-
-$pdf->SetX(15); $pdf->Cell(40, 5, 'Schedule of Classes :', 0, 0);
-$pdf->Cell(0, 5, $schedule, 0, 1);
-
-$pdf->SetX(15); $pdf->Cell(40, 5, 'Number of Units :', 0, 0);
-$pdf->Cell(0, 5, $units, 0, 1);
-
-$legendX = 120;
-$pdf->SetXY($legendX, $infoY);
-$pdf->SetFont('helvetica', 'B', 7);
-$pdf->Cell(25, 4, 'Actual Rating',     1, 0, 'C');
-$pdf->Cell(25, 4, 'Equivalent Rating', 1, 0, 'C');
-$pdf->Cell(30, 4, 'Adjectival Rating', 1, 1, 'C');
-
-$pdf->SetFont('helvetica', '', 7);
-foreach ($pdf->report['legend'] as $lrow) {
-    $pdf->SetX($legendX);
-    $pdf->Cell(25, 3.5, $lrow[0], 1, 0, 'C');
-    $pdf->Cell(25, 3.5, $lrow[1], 1, 0, 'C');
-    $pdf->Cell(30, 3.5, $lrow[2], 1, 1, 'L');
+if ($totalrows <= $rowsonlastpage) {
+    $pages[] = $rows;
+} else {
+    $offset    = 0;
+    $remaining = $totalrows;
+    while ($remaining > $rowsonlastpage) {
+        $take = min($rowsperpage, $remaining - $rowsonlastpage);
+        $pages[] = array_slice($rows, $offset, $take);
+        $offset    += $take;
+        $remaining -= $take;
+    }
+    $pages[] = array_slice($rows, $offset);
 }
 
-$pdf->Ln(4);
+$totalpages = count($pages);
 
-$col = [10, 60, 28, 20, 20, 20, 22];
-
+$col     = [10, 60, 28, 20, 20, 20, 22];
 $headers = ['NO.', 'NAME OF STUDENTS', 'STUDENT NO.', 'MIDTERM', 'FINALS', 'AVERAGE', 'REMARKS'];
-$pdf->SetFont('helvetica', 'B', 8);
-$pdf->SetTextColor(0, 0, 0);
-foreach ($headers as $i => $h) {
-    $pdf->Cell($col[$i], 8, $h, 1, 0, 'C');
-}
-$pdf->Ln();
 
-$pdf->SetFont('helvetica', '', 8);
-$signatureblockheight = 58;
-$tailheight = 6 + 2 + $signatureblockheight;
-$rowcount = count($rows);
+$rownum = 1;
 
-foreach ($rows as $i => $row) {
-    $islastrow = ($i === $rowcount - 1);
-    if ($islastrow) {
-        $remaining = $pdf->getPageHeight() - $pdf->GetY() - 28;
-        if ($remaining < (6 + $tailheight)) {
-            $pdf->AddPage();
-        }
+foreach ($pages as $pageindex => $pagerows) {
+    $islastpage = ($pageindex === $totalpages - 1);
+
+    $pdf->AddPage();
+
+    // ── Title block ──
+    $pdf->SetY(42);
+    $pdf->SetFont('helvetica', 'B', 16);
+    $pdf->Cell(0, 8, 'REPORT OF GRADES', 0, 1, 'C');
+    $pdf->SetFont('helvetica', '', 10);
+    $pdf->Cell(0, 6, $semester . '  SY ' . $schoolyear, 0, 1, 'C');
+    $pdf->Ln(4);
+
+    // ── Course info + legend ──
+    $infoY = $pdf->GetY();
+    $pdf->SetFont('helvetica', '', 9);
+    $pdf->SetX(15); $pdf->Cell(40, 5, 'Subject and Course No. :', 0, 0);
+    $pdf->SetFont('helvetica', 'B', 9); $pdf->Cell(0, 5, $coursenumber, 0, 1);
+
+    $pdf->SetFont('helvetica', '', 9);
+    $pdf->SetX(15); $pdf->Cell(40, 5, 'Descriptive Title :', 0, 0);
+    $pdf->SetFont('helvetica', 'B', 9); $pdf->Cell(0, 5, $descriptive, 0, 1);
+
+    $pdf->SetFont('helvetica', '', 9);
+    $pdf->SetX(15); $pdf->Cell(40, 5, 'Course and Year :', 0, 0);
+    $pdf->Cell(0, 5, $courseandyear, 0, 1);
+
+    $pdf->SetX(15); $pdf->Cell(40, 5, 'Schedule of Classes :', 0, 0);
+    $pdf->Cell(0, 5, $schedule, 0, 1);
+
+    $pdf->SetX(15); $pdf->Cell(40, 5, 'Number of Units :', 0, 0);
+    $pdf->Cell(0, 5, $units, 0, 1);
+
+    $legendX = 120;
+    $pdf->SetXY($legendX, $infoY);
+    $pdf->SetFont('helvetica', 'B', 7);
+    $pdf->Cell(25, 4, 'Actual Rating',     1, 0, 'C');
+    $pdf->Cell(25, 4, 'Equivalent Rating', 1, 0, 'C');
+    $pdf->Cell(30, 4, 'Adjectival Rating', 1, 1, 'C');
+
+    $pdf->SetFont('helvetica', '', 7);
+    foreach ($pdf->report['legend'] as $lrow) {
+        $pdf->SetX($legendX);
+        $pdf->Cell(25, 3, $lrow[0], 1, 0, 'C');
+        $pdf->Cell(25, 3, $lrow[1], 1, 0, 'C');
+        $pdf->Cell(30, 3, $lrow[2], 1, 1, 'L');
     }
 
-    $fill = ($i % 2 === 0);
-    $pdf->SetFillColor(245, 245, 245);
+    $pdf->Ln(3);
 
-    $isFailed = ($row['remarks'] !== 'Passed');
+    // ── Table header ──
+    $pdf->SetFont('helvetica', 'B', 8);
     $pdf->SetTextColor(0, 0, 0);
+    foreach ($headers as $i => $h) {
+        $pdf->Cell($col[$i], 7, $h, 1, 0, 'C');
+    }
+    $pdf->Ln();
 
-    if ($isFailed) $pdf->SetTextColor(180, 0, 0);
-    $pdf->Cell($col[0], 6, $i + 1,          1, 0, 'C', $fill);
-    $pdf->SetTextColor(0, 0, 0);
-    $pdf->Cell($col[1], 6, $row['name'],     1, 0, 'L', $fill);
-    $pdf->Cell($col[2], 6, $row['idnumber'], 1, 0, 'C', $fill);
-    $pdf->Cell($col[3], 6, $row['midterm'],  1, 0, 'C', $fill);
-    $pdf->Cell($col[4], 6, $row['finals'],   1, 0, 'C', $fill);
-    $pdf->Cell($col[5], 6, $row['average'],  1, 0, 'C', $fill);
-    if ($isFailed) $pdf->SetTextColor(180, 0, 0);
-    $pdf->Cell($col[6], 6, $row['remarks'],  1, 1, 'C', $fill);
-    $pdf->SetTextColor(0, 0, 0);
+    // ── Table rows for this page ──
+    $pdf->SetFont('helvetica', '', 8);
+    foreach ($pagerows as $i => $row) {
+        $fill = ($i % 2 === 0);
+        $pdf->SetFillColor(245, 245, 245);
+
+        $isFailed = ($row['remarks'] !== 'Passed');
+        $pdf->SetTextColor(0, 0, 0);
+
+        if ($isFailed) $pdf->SetTextColor(180, 0, 0);
+        $pdf->Cell($col[0], 5.5, $rownum,          1, 0, 'C', $fill);
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->Cell($col[1], 5.5, $row['name'],     1, 0, 'L', $fill);
+        $pdf->Cell($col[2], 5.5, $row['idnumber'], 1, 0, 'C', $fill);
+        $pdf->Cell($col[3], 5.5, $row['midterm'],  1, 0, 'C', $fill);
+        $pdf->Cell($col[4], 5.5, $row['finals'],   1, 0, 'C', $fill);
+        $pdf->Cell($col[5], 5.5, $row['average'],  1, 0, 'C', $fill);
+        if ($isFailed) $pdf->SetTextColor(180, 0, 0);
+        $pdf->Cell($col[6], 5.5, $row['remarks'],  1, 1, 'C', $fill);
+        $pdf->SetTextColor(0, 0, 0);
+
+        $rownum++;
+    }
+
+    // "Nothing follows" only belongs after the real data, on the last page.
+    if ($islastpage) {
+        $pdf->SetFont('helvetica', 'I', 8);
+        $pdf->Cell($col[0], 5.5, '',                     1, 0, 'C');
+        $pdf->Cell($col[1], 5.5, '***Nothing Follows***', 1, 0, 'L');
+        foreach ([2, 3, 4, 5, 6] as $ci) {
+            $pdf->Cell($col[$ci], 5.5, '', 1, 0, 'C');
+        }
+        $pdf->Ln();
+    }
+
+    $pdf->Ln(3);
+
+    // ── Signature block (repeated on every page, matching preview.php) ──
+    $pdf->SetFont('helvetica', 'I', 9);
+    $pdf->Cell(90, 3, 'Certified True & Correct:', 0, 0);
+    $pdf->Cell(0,  3, 'Checked:', 0, 1);
+    $pdf->Ln(6);
+
+    $pdf->SetFont('helvetica', 'B', 9);
+    $pdf->Cell(90, 3, $instructor, 0, 0, 'C');
+    $pdf->Cell(0,  3, $depthead,   0, 1, 'C');
+
+    $pdf->SetFont('helvetica', 'I', 8);
+    $pdf->Cell(90, 3, 'Instructor',      0, 0, 'C');
+    $pdf->Cell(0,  3, 'Department Head', 0, 1, 'C');
+
+    $pdf->Ln(4);
+
+    $pdf->SetFont('helvetica', 'I', 9);
+    $pdf->Cell(90, 3, 'Received:', 0, 0);
+    $pdf->Cell(0,  3, 'Approved:', 0, 1);
+    $pdf->Ln(6);
+
+    $pdf->SetFont('helvetica', 'B', 9);
+    $pdf->Cell(90, 3, $registrar,   0, 0, 'C');
+    $pdf->Cell(0,  3, $collegedean, 0, 1, 'C');
+
+    $pdf->SetFont('helvetica', 'I', 8);
+    $pdf->Cell(90, 3, 'Registrar',    0, 0, 'C');
+    $pdf->Cell(0,  3, 'College Dean', 0, 1, 'C');
 }
-
-$pdf->SetFont('helvetica', 'I', 8);
-$pdf->Cell($col[0], 6, '',                     1, 0, 'C');
-$pdf->Cell($col[1], 6, '***Nothing Follows***', 1, 0, 'L');
-foreach ([2,3,4,5,6] as $ci) $pdf->Cell($col[$ci], 6, '', 1, 0, 'C');
-$pdf->Ln();
-
-$pdf->Ln(4);
-
-$pdf->SetFont('helvetica', 'I', 9);
-$pdf->Cell(90, 3, 'Certified True & Correct:', 0, 0);
-$pdf->Cell(0,  3, 'Checked:', 0, 1);
-$pdf->Ln(8);
-
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->Cell(90, 3, $instructor, 0, 0, 'C');
-$pdf->Cell(0,  3, $depthead,   0, 1, 'C');
-
-$pdf->SetFont('helvetica', 'I', 8);
-$pdf->Cell(90, 3, 'Instructor',      0, 0, 'C');
-$pdf->Cell(0,  3, 'Department Head', 0, 1, 'C');
-
-$pdf->Ln(5);
-
-$pdf->SetFont('helvetica', 'I', 9);
-$pdf->Cell(90, 3, 'Received:', 0, 0);
-$pdf->Cell(0,  3, 'Approved:', 0, 1);
-$pdf->Ln(8);
-
-$pdf->SetFont('helvetica', 'B', 9);
-$pdf->Cell(90, 3, $registrar,   0, 0, 'C');
-$pdf->Cell(0,  3, $collegedean, 0, 1, 'C');
-
-$pdf->SetFont('helvetica', 'I', 8);
-$pdf->Cell(90, 3, 'Registrar',    0, 0, 'C');
-$pdf->Cell(0,  3, 'College Dean', 0, 1, 'C');
 
 $filename = 'ReportOfGrades_' . str_replace(' ', '_', $coursename) . '_' . date('Ymd') . '.pdf';
 while (ob_get_level()) {
