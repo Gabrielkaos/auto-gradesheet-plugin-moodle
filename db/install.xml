@@ -69,6 +69,7 @@
                 <FIELD NAME="equivalent" TYPE="char"   LENGTH="10"  NOTNULL="true"/>
                 <FIELD NAME="descriptor" TYPE="char"   LENGTH="100" NOTNULL="false" DEFAULT=""/>
                 <FIELD NAME="sortorder"  TYPE="int"    LENGTH="10"  NOTNULL="true" DEFAULT="0"/>
+                <FIELD NAME="ispassing"  TYPE="int"    LENGTH="1"   NOTNULL="true" DEFAULT="1"/>
             </FIELDS>
             <KEYS>
                 <KEY NAME="primary" TYPE="primary" FIELDS="id"/>

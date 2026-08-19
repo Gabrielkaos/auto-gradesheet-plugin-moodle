@@ -142,21 +142,36 @@ class helper {
     }
 
     /**
-     * Transmutes a raw percentage score (0-100) into an ESSU equivalent grade.
+     * Transmutes a raw percentage score (0-100) into an equivalent grade.
      *
-     * Bands are monotonic: a higher raw score always yields a lower (better)
-     * equivalent. Each band maps linearly between the equivalent shown for its
-     * floor and its ceiling in get_rating_legend().
+     * If the course has custom transmutation brackets defined, those are used
+     * (a straight bracket match on the stored 'equivalent' string — no
+     * interpolation, since custom equivalents aren't guaranteed to be numeric,
+     * e.g. letter grades). Otherwise falls back to the default ESSU scale.
      *
      * @param float|int|null|string $grade Raw score, or null/'' for "no grade".
-     * @return string Equivalent (e.g. '1.0'), '5.0' for failing, or '-' if no grade.
+     * @param int|null $courseid Course to check for a custom scale. Null = always default.
+     * @return string Equivalent (e.g. '1.0'), '5.0' for failing, or '-' if no grade/no match.
      */
-    public static function transmute_equiv($grade): string {
+    public static function transmute_equiv($grade, ?int $courseid = null): string {
         if ($grade === null || $grade === '' || !is_numeric($grade)) {
             return '-';
         }
 
         $grade = floatval($grade);
+
+        if ($courseid) {
+            $custom = self::get_custom_transmute_rows($courseid);
+            if (!empty($custom)) {
+                foreach ($custom as $row) {
+                    if ($grade >= $row->minscore && $grade <= $row->maxscore) {
+                        return $row->equivalent;
+                    }
+                }
+                // Custom scale is active but no bracket covers this score.
+                return '-';
+            }
+        }
 
         if ($grade < 55) {
             return '5.0';
@@ -184,6 +199,45 @@ class helper {
         }
 
         return '5.0';
+    }
+
+    /**
+     * Returns custom transmutation brackets for a course, ordered high-to-low.
+     * Cached per request so a full roster computation hits the table once.
+     */
+    private static array $transmutecache = [];
+
+    private static function get_custom_transmute_rows(int $courseid): array {
+        global $DB;
+        if (!isset(self::$transmutecache[$courseid])) {
+            self::$transmutecache[$courseid] = $DB->get_records(
+                'local_gradesheet_transmute', ['courseid' => $courseid], 'minscore DESC'
+            );
+        }
+        return self::$transmutecache[$courseid];
+    }
+
+    /**
+     * Whether a raw score counts as passing for this course.
+     *
+     * Under a custom scale, this is driven entirely by the matched bracket's
+     * 'ispassing' flag — not a hardcoded percentage. A score that falls
+     * outside every custom bracket is treated as failing (safer default than
+     * silently passing an unclassified score).
+     */
+    public static function is_passing(float $grade, ?int $courseid = null): bool {
+        if ($courseid) {
+            $custom = self::get_custom_transmute_rows($courseid);
+            if (!empty($custom)) {
+                foreach ($custom as $row) {
+                    if ($grade >= $row->minscore && $grade <= $row->maxscore) {
+                        return (bool)$row->ispassing;
+                    }
+                }
+                return false; // Custom scale active, no bracket matched.
+            }
+        }
+        return $grade >= 75; // Default ESSU threshold.
     }
 
     public static function load_course_config(int $courseid): array {
@@ -314,8 +368,8 @@ class helper {
             'finals'     => $finAvg,
             'average'    => $weightedFinal,
             'cattotals'  => $cattotals,
-            'transmuted' => self::transmute_equiv($weightedFinal),
-            'remarks'    => $weightedFinal >= 75 ? 'PASSED' : 'FAILED',
+            'transmuted' => self::transmute_equiv($weightedFinal, $courseid),
+            'remarks'    => self::is_passing($weightedFinal, $courseid) ? 'PASSED' : 'FAILED',
         ];
     }
 
@@ -337,7 +391,27 @@ class helper {
         ];
     }
 
-    public static function get_rating_legend(): array {
+    /**
+     * Returns the rating legend to display. Uses the course's custom scale if
+     * one is defined, otherwise the default ESSU scale.
+     *
+     * @param int|null $courseid Course to check for a custom scale. Null = always default.
+     */
+    public static function get_rating_legend(?int $courseid = null): array {
+        if ($courseid) {
+            $custom = self::get_custom_transmute_rows($courseid);
+            if (!empty($custom)) {
+                $legend = [];
+                foreach ($custom as $row) {
+                    $range = ($row->minscore == $row->maxscore)
+                        ? self::format_score($row->minscore)
+                        : self::format_score($row->maxscore) . '-' . self::format_score($row->minscore);
+                    $legend[] = [$range, $row->equivalent, $row->descriptor];
+                }
+                return $legend;
+            }
+        }
+
         return [
             ['100',   '1.0',     'Outstanding'],
             ['99-90', '1.1-1.5', 'Excellent'],
@@ -351,5 +425,11 @@ class helper {
             ['WP',    'WP',      'Withdrawn w/ permission'],
             ['IP',    'IP',      'In Progress'],
         ];
+    }
+
+    /** Trims trailing .00 from a stored numeric score for display, e.g. 90.00 -> 90. */
+    private static function format_score($score): string {
+        $f = floatval($score);
+        return (floor($f) == $f) ? (string)intval($f) : rtrim(rtrim(number_format($f, 2), '0'), '.');
     }
 }

@@ -105,5 +105,14 @@ function xmldb_local_gradesheet_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026081800, 'local', 'gradesheet');
     }
 
+    if ($oldversion < 2026081900) {
+        $table = new xmldb_table('local_gradesheet_transmute');
+        $field = new xmldb_field('ispassing', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '1');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+        upgrade_plugin_savepoint(true, 2026081900, 'local', 'gradesheet');
+    }
+
     return true;
 }

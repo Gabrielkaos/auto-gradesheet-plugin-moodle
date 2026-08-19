@@ -261,14 +261,14 @@ if ($courseid) {
                     foreach ($categories as $cat) {
                         $catdata = isset($g['cattotals'][$cat->id]) ? $g['cattotals'][$cat->id] : null;
                         $catavg  = ($catdata && $catdata['count'] > 0)
-                            ? helper::transmute_equiv($catdata['total'] / $catdata['count'])
+                            ? helper::transmute_equiv($catdata['total'] / $catdata['count'], $courseid)
                             : '-';
                         echo "<td>{$catavg}</td>";
                     }
                 }
 
-                echo '<td>' . helper::transmute_equiv($g['midterm']) . '</td>';
-                echo '<td>' . helper::transmute_equiv($g['finals']) . '</td>';
+                echo '<td>' . helper::transmute_equiv($g['midterm'], $courseid) . '</td>';
+                echo '<td>' . helper::transmute_equiv($g['finals'], $courseid) . '</td>';
                 echo '<td>' . $g['transmuted'] . '</td>';
                 echo '<td><span class="badge ' . $badgeclass . '">' . $g['remarks'] . '</span></td>';
             }

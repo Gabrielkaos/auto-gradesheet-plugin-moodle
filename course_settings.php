@@ -112,6 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $max   = required_param('tmax', PARAM_FLOAT);
         $equiv = required_param('tequiv', PARAM_TEXT);
         $desc  = required_param('tdesc', PARAM_TEXT);
+        $ispassing = optional_param('tispassing', 0, PARAM_INT) ? 1 : 0;
         if ($max >= $min && $equiv !== '') {
             $sortorder = $DB->count_records('local_gradesheet_transmute', ['courseid' => $courseid]);
             $DB->insert_record('local_gradesheet_transmute', (object)[
@@ -121,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'equivalent' => $equiv,
                 'descriptor' => $desc,
                 'sortorder'  => $sortorder,
+                'ispassing'  => $ispassing,
             ]);
             $scalesuccess = "Bracket added!";
         } else {
@@ -135,6 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $max   = required_param('tmax', PARAM_FLOAT);
         $equiv = required_param('tequiv', PARAM_TEXT);
         $desc  = required_param('tdesc', PARAM_TEXT);
+        $ispassing = optional_param('tispassing', 0, PARAM_INT) ? 1 : 0;
 
         $row = $DB->get_record('local_gradesheet_transmute', ['id' => $tid, 'courseid' => $courseid]);
         if (!$row) {
@@ -148,6 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $row->maxscore   = $max;
             $row->equivalent = $equiv;
             $row->descriptor = $desc;
+            $row->ispassing  = $ispassing;
             $DB->update_record('local_gradesheet_transmute', $row);
             redirect(
                 new moodle_url('/local/gradesheet/course_settings.php', ['courseid' => $courseid], 'grading-scale'),
@@ -535,6 +539,7 @@ echo $OUTPUT->header();
                         <th>Max Score</th>
                         <th>Equivalent</th>
                         <th>Descriptor</th>
+                        <?php if ($usingcustomscale): ?><th>Passing?</th><?php endif; ?>
                         <?php if ($usingcustomscale): ?><th>Action</th><?php endif; ?>
                     </tr>
                 </thead>
@@ -555,6 +560,13 @@ echo $OUTPUT->header();
                             <td><input type="text" name="tequiv" class="form-control form-control-sm" form="edittransmuteform<?php echo $row->id; ?>" value="<?php echo s($row->equivalent); ?>"></td>
                             <td><input type="text" name="tdesc" class="form-control form-control-sm" form="edittransmuteform<?php echo $row->id; ?>" value="<?php echo s($row->descriptor); ?>"></td>
                             <td>
+                                <div class="form-check">
+                                    <input type="checkbox" class="form-check-input" name="tispassing" value="1"
+                                           form="edittransmuteform<?php echo $row->id; ?>"
+                                           <?php echo $row->ispassing ? 'checked' : ''; ?>>
+                                </div>
+                            </td>
+                            <td>
                                 <button type="submit" class="btn btn-primary btn-sm" form="edittransmuteform<?php echo $row->id; ?>">Save</button>
                                 <a href="course_settings.php?courseid=<?php echo $courseid; ?>#grading-scale" class="btn btn-secondary btn-sm">Cancel</a>
                             </td>
@@ -565,6 +577,7 @@ echo $OUTPUT->header();
                             <td><?php echo s($row->maxscore); ?></td>
                             <td><strong><?php echo s($row->equivalent); ?></strong></td>
                             <td><?php echo s($row->descriptor); ?></td>
+                            <td><?php echo $row->ispassing ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'; ?></td>
                             <td>
                                 <a href="course_settings.php?courseid=<?php echo $courseid; ?>&edittid=<?php echo $row->id; ?>#grading-scale"
                                    class="btn btn-warning btn-sm">Edit</a>
@@ -613,6 +626,12 @@ echo $OUTPUT->header();
                     <div class="col-md-4">
                         <label><strong>Descriptor</strong></label>
                         <input type="text" name="tdesc" class="form-control" placeholder="e.g. Outstanding">
+                    </div>
+                    <div class="col-md-2 mt-2">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" name="tispassing" value="1" checked>
+                            <label class="form-check-label"><strong>Counts as Passing</strong></label>
+                        </div>
                     </div>
                     <div class="col-md-2 mt-2">
                         <button type="submit" class="btn btn-success btn-block">Add</button>
