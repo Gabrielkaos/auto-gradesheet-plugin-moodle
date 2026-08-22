@@ -293,7 +293,66 @@ class helper {
         return $filtered;
     }
 
-    public static function compute_student_grades(int $courseid, int $studentid, float $midweight, float $finweight): array {
+    /**
+     * Course-level mapping sanity counts, used for warnings on the index and
+     * settings pages.
+     *
+     * @param int $courseid Course id.
+     * @return array{unmapped:int, midterm:int, finals:int}|null
+     *         Counts of grade items not usable in computation (no valid
+     *         category mapping) and of items mapped to each period.
+     *         Null when the course has no grade items at all.
+     */
+    public static function get_mapping_warnings(int $courseid): ?array {
+        global $DB;
+
+        $gitems = $DB->get_records_select(
+            'grade_items',
+            'courseid = ? AND itemtype != ? AND itemname IS NOT NULL',
+            [$courseid, 'course'],
+            '',
+            'id'
+        );
+        if (empty($gitems)) {
+            return null;
+        }
+
+        $categories = $DB->get_records('local_gradesheet_categories', ['courseid' => $courseid], '', 'id');
+
+        // Re-keyed by gradeitemid — get_records_list indexes rows by their own id.
+        $maps = [];
+        foreach ($DB->get_records_list('local_gradesheet_itemmap', 'gradeitemid', array_keys($gitems)) as $m) {
+            $maps[$m->gradeitemid] = $m;
+        }
+
+        $counts = ['unmapped' => 0, 'midterm' => 0, 'finals' => 0];
+        foreach (array_keys($gitems) as $itemid) {
+            $map = $maps[$itemid] ?? null;
+            if (!$map || empty($map->categoryid) || !isset($categories[$map->categoryid])) {
+                $counts['unmapped']++;
+            } else {
+                $counts[$map->period === 'midterm' ? 'midterm' : 'finals']++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Computes a student's Midterm/Finals period values and final average.
+     *
+     * Each period value is the weighted mean of the category averages that
+     * have grade items in that period, normalized by their combined weight
+     * (plain mean if every participating weight is zero). A period with no
+     * mapped items yields null. The final average is (midterm + finals) / 2
+     * when both periods have data, otherwise whichever period has data, or
+     * null when neither does.
+     *
+     * @param int $courseid Course id.
+     * @param int $studentid Student id.
+     * @return array{midterm:?float, finals:?float, average:?float, cattotals:array, transmuted:string, remarks:string}
+     */
+    public static function compute_student_grades(int $courseid, int $studentid): array {
         global $DB;
 
         $gitems = $DB->get_records_select(
@@ -307,11 +366,16 @@ class helper {
 
         $cattotals = [];
         foreach ($categories as $cat) {
-            $cattotals[$cat->id] = ['total' => 0, 'count' => 0, 'weight' => $cat->weight, 'name' => $cat->name];
+            $cattotals[$cat->id] = [
+                'total' => 0, 'count' => 0, 'weight' => $cat->weight, 'name' => $cat->name,
+                'midtotal' => 0, 'midcount' => 0, 'fintotal' => 0, 'fincount' => 0,
+            ];
         }
 
-        $midTotal = 0; $midCount = 0;
-        $finTotal = 0; $finCount = 0;
+        // Items accumulated per period, keyed by category. Items not mapped
+        // to an existing category are excluded from computation entirely
+        // (surfaced as a warning via get_mapping_warnings()).
+        $periodcats = ['midterm' => [], 'finals' => []];
 
         foreach ($gitems as $gitem) {
             $ggrade = $DB->get_record('grade_grades', [
@@ -331,45 +395,75 @@ class helper {
                 'courseid'    => $courseid,
                 'gradeitemid' => $gitem->id,
             ]);
-            $period = $map ? $map->period     : 'finals';
-            $catid  = $map ? $map->categoryid : 0;
+            $period = ($map && $map->period === 'midterm') ? 'midterm' : 'finals';
+            $catid  = $map ? (int)$map->categoryid : 0;
 
-            if ($catid && isset($cattotals[$catid])) {
-                $cattotals[$catid]['total'] += $val;
-                $cattotals[$catid]['count']++;
+            if (!$catid || !isset($cattotals[$catid])) {
+                continue;
             }
 
+            $cattotals[$catid]['total'] += $val;
+            $cattotals[$catid]['count']++;
             if ($period === 'midterm') {
-                $midTotal += $val; $midCount++;
+                $cattotals[$catid]['midtotal'] += $val;
+                $cattotals[$catid]['midcount']++;
             } else {
-                $finTotal += $val; $finCount++;
+                $cattotals[$catid]['fintotal'] += $val;
+                $cattotals[$catid]['fincount']++;
+            }
+
+            if (!isset($periodcats[$period][$catid])) {
+                $periodcats[$period][$catid] = ['total' => 0, 'count' => 0];
+            }
+            $periodcats[$period][$catid]['total'] += $val;
+            $periodcats[$period][$catid]['count']++;
+        }
+
+        $periodvals = [];
+        foreach ($periodcats as $period => $cats) {
+            $sumw   = 0.0;
+            $sumwa  = 0.0;
+            $sumavg = 0.0;
+            $n      = 0;
+            foreach ($cats as $catid => $data) {
+                $catAvg = $data['total'] / $data['count'];
+                $weight = floatval($cattotals[$catid]['weight']);
+                $sumw   += $weight;
+                $sumwa  += $catAvg * $weight;
+                $sumavg += $catAvg;
+                $n++;
+            }
+            if ($n === 0) {
+                $periodvals[$period] = null;
+            } else if ($sumw > 0) {
+                $periodvals[$period] = $sumwa / $sumw;
+            } else {
+                $periodvals[$period] = $sumavg / $n;
             }
         }
 
-        $weightedFinal = 0;
-        $totalWeight   = 0;
-        foreach ($cattotals as $data) {
-            if ($data['count'] > 0) {
-                $catAvg        = $data['total'] / $data['count'];
-                $weightedFinal += ($catAvg * ($data['weight'] / 100));
-                $totalWeight   += $data['weight'];
-            }
-        }
+        $mid = $periodvals['midterm'];
+        $fin = $periodvals['finals'];
 
-        $midAvg = $midCount > 0 ? $midTotal / $midCount : 0;
-        $finAvg = $finCount > 0 ? $finTotal / $finCount : 0;
-
-        if ($totalWeight == 0) {
-            $weightedFinal = ($midAvg * $midweight) + ($finAvg * $finweight);
+        if ($mid !== null && $fin !== null) {
+            $average = ($mid + $fin) / 2;
+        } else if ($mid !== null) {
+            $average = $mid;
+        } else if ($fin !== null) {
+            $average = $fin;
+        } else {
+            $average = null;
         }
 
         return [
-            'midterm'    => $midAvg,
-            'finals'     => $finAvg,
-            'average'    => $weightedFinal,
+            'midterm'    => $mid,
+            'finals'     => $fin,
+            'average'    => $average,
             'cattotals'  => $cattotals,
-            'transmuted' => self::transmute_equiv($weightedFinal, $courseid),
-            'remarks'    => self::is_passing($weightedFinal, $courseid) ? 'PASSED' : 'FAILED',
+            'transmuted' => self::transmute_equiv($average, $courseid),
+            'remarks'    => ($average === null)
+                ? ''
+                : (self::is_passing($average, $courseid) ? 'PASSED' : 'FAILED'),
         ];
     }
 

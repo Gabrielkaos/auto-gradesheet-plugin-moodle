@@ -97,7 +97,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Delete a category
     if ($action === 'deletecategory') {
-        $catid = required_param('catid', PARAM_INT);
+        $catid    = required_param('catid', PARAM_INT);
+        $catcount = $DB->count_records('local_gradesheet_categories', ['courseid' => $courseid]);
+        if ($catcount <= 1) {
+            redirect(
+                new moodle_url('/local/gradesheet/course_settings.php', ['courseid' => $courseid], 'grade-categories'),
+                get_string('warnlastcategory', 'local_gradesheet'),
+                null,
+                \core\output\notification::NOTIFY_WARNING
+            );
+        }
         $DB->delete_records('local_gradesheet_categories', ['id' => $catid, 'courseid' => $courseid]);
         // Remove mapping for items in this category
         $DB->set_field('local_gradesheet_itemmap', 'categoryid', 0, [
@@ -381,6 +390,7 @@ echo $OUTPUT->header();
                         <td>
                             <a href="course_settings.php?courseid=<?php echo $courseid; ?>&editcatid=<?php echo $cat->id; ?>#grade-categories"
                                class="btn btn-warning btn-sm">Edit</a>
+                            <?php if (count($categories) > 1): ?>
                             <form method="post" style="display:inline">
                                 <input type="hidden" name="action" value="deletecategory">
                                 <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
@@ -388,6 +398,10 @@ echo $OUTPUT->header();
                                 <button type="submit" class="btn btn-danger btn-sm"
                                         onclick="return confirm('Delete this category?')">Delete</button>
                             </form>
+                            <?php else: ?>
+                            <button type="button" class="btn btn-danger btn-sm disabled" tabindex="-1"
+                                    title="<?php echo s(get_string('warnlastcategory', 'local_gradesheet')); ?>">Delete</button>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endif; ?>
@@ -441,6 +455,24 @@ echo $OUTPUT->header();
         <div class="card-body">
             <?php if (!empty($mapsuccess)): ?>
                 <div class="alert alert-success"><?php echo $mapsuccess; ?></div>
+            <?php endif; ?>
+
+            <?php
+            $mapwarn = helper::get_mapping_warnings($courseid);
+            if ($mapwarn !== null && !empty($categories)
+                    && ($mapwarn['unmapped'] > 0 || $mapwarn['midterm'] === 0 || $mapwarn['finals'] === 0)): ?>
+                <div class="alert alert-warning">
+                    <strong>WARNING:</strong>
+                    <?php if ($mapwarn['unmapped'] > 0): ?>
+                        <?php echo get_string('warnunmappeditems', 'local_gradesheet', $mapwarn['unmapped']); ?>
+                    <?php endif; ?>
+                    <?php if ($mapwarn['midterm'] === 0): ?>
+                        <div><?php echo get_string('warnnoperioditems', 'local_gradesheet', 'Midterm'); ?></div>
+                    <?php endif; ?>
+                    <?php if ($mapwarn['finals'] === 0): ?>
+                        <div><?php echo get_string('warnnoperioditems', 'local_gradesheet', 'Finals'); ?></div>
+                    <?php endif; ?>
+                </div>
             <?php endif; ?>
 
             <?php if (empty($categories)): ?>

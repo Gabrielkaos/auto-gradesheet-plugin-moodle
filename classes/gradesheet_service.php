@@ -41,15 +41,18 @@ class gradesheet_service {
                 continue;
             }
 
-            $g = helper::compute_student_grades(
-                $courseid, $student->id, $cfg['midweight'], $cfg['finweight']
-            );
+            $g = helper::compute_student_grades($courseid, $student->id);
 
-            $remarks = $g['remarks'] === 'PASSED' ? 'Passed' : 'Failed';
-            if ($remarks === 'Passed') {
+            // Students with no mapped/computed data yet show dashes and are
+            // excluded from the pass/fail rate.
+            if ($g['remarks'] === 'PASSED') {
+                $remarks   = 'Passed';
                 $passcount++;
-            } else {
+            } else if ($g['remarks'] === 'FAILED') {
+                $remarks   = 'Failed';
                 $failcount++;
+            } else {
+                $remarks = '-';
             }
 
             $rows[] = [

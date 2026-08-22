@@ -17,3 +17,6 @@ $string['viewmygrades']        = 'View My Grades';
 $string['nogradesfound']       = 'No grades found for this course.';
 $string['gradesheet:view']     = 'View grade sheets';
 $string['gradesheet:manage']   = 'Manage grade sheets';
+$string['warnunmappeditems']   = '{$a} grade item(s) are not mapped to any category and are excluded from grade computation.';
+$string['warnnoperioditems']   = 'No grade items are mapped to {$a}. That column will show "-" and the final average falls back to the period that has items.';
+$string['warnlastcategory']    = 'The last remaining grade category cannot be deleted.';

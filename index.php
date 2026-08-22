@@ -87,10 +87,14 @@ if ($courseid) {
     $weightvalid = helper::validate_weight_sum($courseid);
 
     if ($isstudent && !$isadmin) {
-        $grades = helper::compute_student_grades($courseid, $USER->id, $midweight, $finweight);
+        $grades = helper::compute_student_grades($courseid, $USER->id);
         $mystatus = helper::get_student_status($courseid, $USER->id);
 
         if ($mystatus !== '') {
+            $color = '#555';
+            $bg    = '#e2e3e5';
+        } else if ($grades['remarks'] === '') {
+            // No computable grades yet — neutral styling instead of fail-red.
             $color = '#555';
             $bg    = '#e2e3e5';
         } else {
@@ -154,19 +158,19 @@ if ($courseid) {
             }
         } else {
             echo '<div class="grade-row">
-                    <span class="grade-label">Midterm (' . $mpct . '%)</span>
-                    <span class="grade-value">' . number_format($grades['midterm'], 2) . '</span>
+                    <span class="grade-label">Midterm</span>
+                    <span class="grade-value">' . ($grades['midterm'] === null ? '—' : number_format($grades['midterm'], 2)) . '</span>
                   </div>';
             echo '<div class="grade-row">
-                    <span class="grade-label">Finals (' . $fpct . '%)</span>
-                    <span class="grade-value">' . number_format($grades['finals'],  2) . '</span>
+                    <span class="grade-label">Finals</span>
+                    <span class="grade-value">' . ($grades['finals'] === null ? '—' : number_format($grades['finals'], 2)) . '</span>
                   </div>';
         }
 
         if ($mystatus === '') {
             echo '<div class="grade-row" style="background:#f8f9fa">
                     <span class="grade-label">Final Average</span>
-                    <span class="grade-value">' . number_format($grades['average'], 2) . '</span>
+                    <span class="grade-value">' . ($grades['average'] === null ? '—' : number_format($grades['average'], 2)) . '</span>
                   </div>';
             echo '<div class="grade-row" style="background:#f8f9fa">
                     <span class="grade-label">Transmuted Grade</span>
@@ -175,8 +179,11 @@ if ($courseid) {
         }
 
         echo '</div></div>';
+        $myremarks = ($mystatus !== '')
+            ? s(helper::status_label($mystatus))
+            : ($grades['remarks'] !== '' ? $grades['remarks'] : '—');
         echo '<div class="remarks-box" style="background:' . $bg . '; color:' . $color . '">
-                ' . ($mystatus !== '' ? s(helper::status_label($mystatus)) : $grades['remarks']) . '
+                ' . $myremarks . '
               </div>';
         echo '</div>';
 
@@ -204,6 +211,29 @@ if ($courseid) {
                 echo 'You have <strong>no categories</strong> defined. ';
             }
             echo 'Printing and exporting are <strong>disabled</strong> until this is corrected. ';
+            echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-light btn-sm ml-2"><strong>Go to Settings</strong></a>';
+            echo '</div></div>';
+        }
+
+        // Mapping sanity warnings: unmapped items and empty periods never
+        // block printing, but faculty must see why columns show "-".
+        $mapwarn = helper::get_mapping_warnings($courseid);
+        if ($mapwarn !== null && ($mapwarn['unmapped'] > 0 || $mapwarn['midterm'] === 0 || $mapwarn['finals'] === 0)) {
+            echo '<div class="alert alert-warning d-flex align-items-center" role="alert" style="font-size:16px; padding:15px 20px;">';
+            echo '<span style="font-size:28px; margin-right:12px;">&#9888;</span>';
+            echo '<div>';
+            echo '<strong>WARNING:</strong> ';
+            $parts = [];
+            if ($mapwarn['unmapped'] > 0) {
+                $parts[] = get_string('warnunmappeditems', 'local_gradesheet', $mapwarn['unmapped']);
+            }
+            if ($mapwarn['midterm'] === 0) {
+                $parts[] = get_string('warnnoperioditems', 'local_gradesheet', 'Midterm');
+            }
+            if ($mapwarn['finals'] === 0) {
+                $parts[] = get_string('warnnoperioditems', 'local_gradesheet', 'Finals');
+            }
+            echo implode(' ', $parts);
             echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-light btn-sm ml-2"><strong>Go to Settings</strong></a>';
             echo '</div></div>';
         }
@@ -290,32 +320,39 @@ if ($courseid) {
                 echo '<td>-</td><td>-</td><td>-</td>';
                 echo '<td><span class="badge badge-secondary">' . s(helper::status_label($curstatus)) . '</span></td>';
             } else {
-                $g          = helper::compute_student_grades($courseid, $student->id, $midweight, $finweight);
-                $badgeclass = $g['remarks'] === 'PASSED' ? 'badge-success' : 'badge-danger';
-                $remarkskey = strtolower($g['remarks']); // 'passed' or 'failed'
+                $g          = helper::compute_student_grades($courseid, $student->id);
+                $hasdata    = $g['remarks'] !== '';
+                $badgeclass = !$hasdata ? 'badge-secondary' : ($g['remarks'] === 'PASSED' ? 'badge-success' : 'badge-danger');
+                $remarkskey = strtolower($g['remarks']); // 'passed', 'failed', or '' (no data)
 
                 echo "<tr data-gs-search='" . s($searchkey) . "' data-gs-remarks='" . s($remarkskey) . "' data-gs-status='" . s($statuskey) . "'>
                 <td>{$rownum}</td>
                 <td>{$student->idnumber}</td>
                 <td>{$student->lastname}, {$student->firstname}</td>";
 
-                if ($g['remarks'] === 'PASSED') $passcount++;
-                else $failcount++;
+                if ($g['remarks'] === 'PASSED') {
+                    $passcount++;
+                } else if ($g['remarks'] === 'FAILED') {
+                    $failcount++;
+                }
 
                 if (!empty($categories)) {
                     foreach ($categories as $cat) {
                         $catdata = isset($g['cattotals'][$cat->id]) ? $g['cattotals'][$cat->id] : null;
-                        $catavg  = ($catdata && $catdata['count'] > 0)
-                            ? helper::transmute_equiv($catdata['total'] / $catdata['count'], $courseid)
+                        $midpart = ($catdata && $catdata['midcount'] > 0)
+                            ? number_format($catdata['midtotal'] / $catdata['midcount'], 0) . '%'
                             : '-';
-                        echo "<td>{$catavg}</td>";
+                        $finpart = ($catdata && $catdata['fincount'] > 0)
+                            ? number_format($catdata['fintotal'] / $catdata['fincount'], 0) . '%'
+                            : '-';
+                        echo "<td>{$midpart}/{$finpart}</td>";
                     }
                 }
 
                 echo '<td>' . helper::transmute_equiv($g['midterm'], $courseid) . '</td>';
                 echo '<td>' . helper::transmute_equiv($g['finals'], $courseid) . '</td>';
                 echo '<td>' . $g['transmuted'] . '</td>';
-                echo '<td><span class="badge ' . $badgeclass . '">' . $g['remarks'] . '</span></td>';
+                echo '<td><span class="badge ' . $badgeclass . '">' . ($hasdata ? $g['remarks'] : '-') . '</span></td>';
             }
 
             // Status-setting control — always available regardless of current status.

@@ -225,7 +225,7 @@ foreach ($pages as $pageindex => $pagerows):
         </thead>
         <tbody>
             <?php foreach ($pagerows as $row): ?>
-            <?php $isfailed = ($row['remarks'] !== 'Passed'); ?>
+            <?php $isfailed = ($row['remarks'] === 'Failed'); ?>
             <tr>
                 <td class="<?php echo $isfailed ? 'failed-cell' : ''; ?>"><?php echo $rownum++; ?></td>
                 <td class="name-col"><?php echo htmlspecialchars($row['name']); ?></td>

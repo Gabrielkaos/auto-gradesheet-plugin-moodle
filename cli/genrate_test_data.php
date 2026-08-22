@@ -16,7 +16,8 @@
 //   --students=N         Number of students to create (default 100)
 //   --coursename="..."   Full name for the test course (default "Gradesheet Load Test")
 //   --shortname=...      Shortname for the test course (default auto-generated)
-//   --items=N            Number of grade items to create (default 5)
+//   --items=N            (ignored) items are now a fixed 6-item grid:
+//                          Midterm/Finals x Quiz/Project/Exam
 //   --delete              Delete the course + test users from a previous run
 //                          (requires --shortname=... of that run), then exit
 //   --help / -h           Show this help
@@ -56,14 +57,13 @@ if ($options['help']) {
     cli_writeln("  --students=N        Number of students to create (default 100)");
     cli_writeln("  --coursename=\"...\"  Course full name (default 'Gradesheet Load Test')");
     cli_writeln("  --shortname=...     Course shortname (default auto-generated)");
-    cli_writeln("  --items=N           Number of grade items to create (default 5)");
+    cli_writeln("  --items=N           (ignored) items are now a fixed 6-item grid: Midterm/Finals x Quiz/Project/Exam");
     cli_writeln("  --delete            Delete a previously generated course + its test users, then exit");
     cli_writeln("                      (must be combined with --shortname=... of the run to remove)");
     exit(0);
 }
 
 $numstudents = max(1, (int) $options['students']);
-$numitems    = max(1, (int) $options['items']);
 $fullname    = $options['coursename'];
 
 // ---------------------------------------------------------------------
@@ -129,15 +129,31 @@ $courseid = $course->id;
 cli_writeln("Created course '{$fullname}' (shortname: {$shortname}, id: {$courseid}).");
 
 // ---------------------------------------------------------------------
-// 2. Create grade items.
+// 2. Create grade items — fixed Midterm/Finals x Quiz/Project/Exam grid,
+//    auto-mapped into local_gradesheet_itemmap so the course is ready
+//    to preview/export without a manual mapping step.
 // ---------------------------------------------------------------------
-$itemnames = ['Quiz 1', 'Quiz 2', 'Long Exam 1', 'Project', 'Long Exam 2', 'Recitation', 'Seatwork', 'Lab Activity'];
+\local_gradesheet\helper::ensure_course_defaults($courseid);
+
+$dbcategories = $DB->get_records('local_gradesheet_categories', ['courseid' => $courseid]);
+$catidbyname = [];
+foreach ($dbcategories as $cat) {
+    $catidbyname[$cat->name] = $cat->id;
+}
+
+// itemname => [period, category name to map into]
+$itemspecs = [
+    'Midterm Quiz'    => ['midterm', 'Quizzes'],
+    'Midterm Project' => ['midterm', 'Activities'],
+    'Midterm Exam'    => ['midterm', 'Exams'],
+    'Finals Quiz'     => ['finals',  'Quizzes'],
+    'Finals Project'  => ['finals',  'Activities'],
+    'Finals Exam'     => ['finals',  'Exams'],
+];
+
 $createditems = [];
 
-for ($i = 0; $i < $numitems; $i++) {
-    $cycle = intdiv($i, count($itemnames));
-    $name  = $itemnames[$i % count($itemnames)] . ($cycle > 0 ? ' (' . ($cycle + 1) . ')' : '');
-
+foreach ($itemspecs as $name => [$period, $catname]) {
     $gradeitem = new grade_item([
         'courseid'  => $courseid,
         'itemtype'  => 'manual',
@@ -149,7 +165,15 @@ for ($i = 0; $i < $numitems; $i++) {
     $gradeitem->insert('local/gradesheet');
     $createditems[] = $gradeitem;
 
-    cli_writeln("  Grade item created: {$name} (id {$gradeitem->id})");
+    $catid = $catidbyname[$catname] ?? 0;
+    $DB->insert_record('local_gradesheet_itemmap', (object)[
+        'courseid'    => $courseid,
+        'gradeitemid' => $gradeitem->id,
+        'period'      => $period,
+        'categoryid'  => $catid,
+    ]);
+
+    cli_writeln("  Grade item created: {$name} (id {$gradeitem->id}) -> {$period} / {$catname}");
 }
 
 // ---------------------------------------------------------------------
@@ -233,10 +257,8 @@ cli_writeln("  Course ID: {$courseid}");
 cli_writeln("  URL:       {$CFG->wwwroot}/local/gradesheet/index.php?courseid={$courseid}");
 cli_writeln('');
 cli_writeln('Next steps:');
-cli_writeln("  1. Visit {$CFG->wwwroot}/local/gradesheet/course_settings.php?courseid={$courseid}");
-cli_writeln('     and map each grade item to a Category and Period (Midterm/Finals),');
-cli_writeln('     since local_gradesheet_itemmap is left empty by this script.');
-cli_writeln('  2. Then preview/export from the Grade Sheet page.');
+cli_writeln('  Grade items are already mapped (Midterm/Finals x Quiz/Project/Exam).');
+cli_writeln("  Preview/export straight from: {$CFG->wwwroot}/local/gradesheet/index.php?courseid={$courseid}");
 cli_writeln('');
 cli_writeln('To remove everything this script created later, run:');
 cli_writeln("  php local/gradesheet/cli/generate_testdata.php --delete --shortname={$shortname}");

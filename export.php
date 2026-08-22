@@ -173,7 +173,7 @@ foreach ($pages as $pageindex => $pagerows) {
         $fill = ($i % 2 === 0);
         $pdf->SetFillColor(245, 245, 245);
 
-        $isFailed = ($row['remarks'] !== 'Passed');
+        $isFailed = ($row['remarks'] === 'Failed');
         $pdf->SetTextColor(0, 0, 0);
 
         if ($isFailed) $pdf->SetTextColor(180, 0, 0);
