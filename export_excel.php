@@ -91,7 +91,7 @@ $infoData = [
 foreach ($infoData as $r => [$label, $val]) {
     $sheet->setCellValue('A' . $r, $label);
     $sheet->mergeCells('B' . $r . ':D' . $r);
-    $sheet->setCellValue('B' . $r, $val);
+    $sheet->setCellValueExplicit('B' . $r, $val, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
     $sheet->getStyle('A' . $r)->getFont()->setItalic(true);
     $sheet->getStyle('B' . $r)->getFont()->setBold(true);
 }
@@ -103,9 +103,9 @@ $legendStartRow = 6;
 foreach ($legend as $li => $lrow) {
     $r        = $legendStartRow + $li;
     $isHeader = ($li === 0);
-    $sheet->setCellValue('E' . $r, $lrow[0]);
-    $sheet->setCellValue('F' . $r, $lrow[1]);
-    $sheet->setCellValue('G' . $r, $lrow[2]);
+    $sheet->setCellValueExplicit('E' . $r, $lrow[0], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+    $sheet->setCellValueExplicit('F' . $r, $lrow[1], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+    $sheet->setCellValueExplicit('G' . $r, $lrow[2], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
     $sheet->getStyle("E{$r}:G{$r}")->applyFromArray([
         'font'      => ['bold' => $isHeader, 'size' => 8],
         'fill'      => $isHeader
@@ -148,8 +148,8 @@ foreach ($rows as $i => $row) {
     $textColor = $isFailed ? 'CC0000' : '000000';
 
     $sheet->setCellValue('A' . $dataRow, $i + 1);
-    $sheet->setCellValue('B' . $dataRow, $row['name']);
-    $sheet->setCellValue('C' . $dataRow, $row['idnumber']);
+    $sheet->setCellValueExplicit('B' . $dataRow, $row['name'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+    $sheet->setCellValueExplicit('C' . $dataRow, $row['idnumber'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
 
     $sheet->setCellValue('D' . $dataRow, $row['midterm']);
     $sheet->setCellValue('E' . $dataRow, $row['finals']);
@@ -184,13 +184,13 @@ $sheet->getStyle('E' . $sigRow)->getFont()->setItalic(true);
 
 $sigRow += 3;
 $sheet->mergeCells('A' . $sigRow . ':C' . $sigRow);
-$sheet->setCellValue('A' . $sigRow, $instructor);
+$sheet->setCellValueExplicit('A' . $sigRow, $instructor, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
 $sheet->getStyle('A' . $sigRow)->applyFromArray([
     'font'      => ['bold' => true],
     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
 ]);
 $sheet->mergeCells('E' . $sigRow . ':G' . $sigRow);
-$sheet->setCellValue('E' . $sigRow, $depthead);
+$sheet->setCellValueExplicit('E' . $sigRow, $depthead, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
 $sheet->getStyle('E' . $sigRow)->applyFromArray([
     'font'      => ['bold' => true],
     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
@@ -218,13 +218,13 @@ $sheet->getStyle('E' . $sigRow)->getFont()->setItalic(true);
 
 $sigRow += 3;
 $sheet->mergeCells('A' . $sigRow . ':C' . $sigRow);
-$sheet->setCellValue('A' . $sigRow, $registrar);
+$sheet->setCellValueExplicit('A' . $sigRow, $registrar, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
 $sheet->getStyle('A' . $sigRow)->applyFromArray([
     'font'      => ['bold' => true],
     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
 ]);
 $sheet->mergeCells('E' . $sigRow . ':G' . $sigRow);
-$sheet->setCellValue('E' . $sigRow, $collegedean);
+$sheet->setCellValueExplicit('E' . $sigRow, $collegedean, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
 $sheet->getStyle('E' . $sigRow)->applyFromArray([
     'font'      => ['bold' => true],
     'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],

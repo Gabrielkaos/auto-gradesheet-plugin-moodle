@@ -83,24 +83,8 @@ $pdf->report = [
 // Mirrors preview.php exactly: every "page" gets its own full header,
 // legend, table header, and signature block, capped at 20 student rows.
 $rowsperpage    = 20;
-$rowsonlastpage = 20;
 
-$totalrows = count($rows);
-$pages = [];
-
-if ($totalrows <= $rowsonlastpage) {
-    $pages[] = $rows;
-} else {
-    $offset    = 0;
-    $remaining = $totalrows;
-    while ($remaining > $rowsonlastpage) {
-        $take = min($rowsperpage, $remaining - $rowsonlastpage);
-        $pages[] = array_slice($rows, $offset, $take);
-        $offset    += $take;
-        $remaining -= $take;
-    }
-    $pages[] = array_slice($rows, $offset);
-}
+$pages = array_chunk($rows, $rowsperpage);
 
 $totalpages = count($pages);
 

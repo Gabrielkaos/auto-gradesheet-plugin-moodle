@@ -98,19 +98,20 @@ Defined in `db/install.xml`; evolution tracked in `db/upgrade.php`.
 
 ## 5. Core Grading Logic (`helper.php`)
 
-### 5.1 Grade extraction & normalization (`compute_student_grades`, helper.php:296)
+### 5.1 Grade extraction & normalization (`compute_student_grades`, helper.php:354)
 1. Fetch all grade items for the course except the course total (`itemtype != 'course'`, `itemname IS NOT NULL`).
 2. For each item, read the student's `finalgrade` from `grade_grades`; normalize to 0–100 (`val / grademax * 100` when `grademax ≠ 100`).
-3. Look up the item's `period` (midterm/finals) and `categoryid` from `itemmap`.
+3. Look up the item's `period` (midterm/finals) and `categoryid` from `itemmap`. (Unmapped items are ignored).
 4. Accumulate per-category totals/counts and per-period totals/counts.
 
 ### 5.2 Weighted computation
-- **Category mode** (when categories exist with total weight > 0):
-  - Per category: `catAvg = total / count`
-  - `weightedFinal = Σ(catAvg × weight/100)`
-- **Fallback mode** (no categories / zero weight):
-  - `midAvg = midTotal / midCount`, `finAvg = finTotal / finCount`
-  - `weightedFinal = midAvg × midweight + finAvg × finweight` (defaults 0.5/0.5)
+- **Period Calculation**:
+  - For each period (Midterm, Finals), it calculates the weighted average of its mapped categories: `periodAvg = Σ(catAvg × catWeight) / Σ(catWeight)`.
+  - If all mapped categories for a period have zero weight, it falls back to a simple unweighted average of the category averages: `periodAvg = Σ(catAvg) / count`.
+- **Final Average Calculation**:
+  - The final average is a strict 50/50 split between the two periods: `finalAverage = (midterm + finals) / 2`.
+  - If only one period has graded items, that period's average becomes the final average.
+  - *Note:* The `quizweight` and `examweight` fields in the config table are legacy/unused; computation strictly follows category weights within periods.
 
 ### 5.3 Transmutation to equivalent rating (`transmute_equiv`, helper.php:156)
 - Returns `'-'` for null/empty/non-numeric input.
@@ -138,7 +139,7 @@ Defined in `db/install.xml`; evolution tracked in `db/upgrade.php`.
 ### 5.5 Status overrides & validation
 - `VALID_STATUSES = ['', 'inc', 'dropped', 'wp', 'ip']` (helper.php:9).
 - `set_student_status()` inserts/updates/deletes `local_gradesheet_status`.
-- `validate_weight_sum()` enforces sum = 100% and ≥ 1 category (helper.php:380).
+- `validate_weight_sum()` enforces sum = 100% and ≥ 1 category (helper.php:474).
 
 ### 5.6 Defaults & caching
 - `ensure_course_defaults()` auto-creates config + 3 default categories; triggered on `course_created`, on navigation render, and on first `index.php` load.
@@ -222,7 +223,7 @@ Defined in `db/install.xml`; evolution tracked in `db/upgrade.php`.
 ## 10. Notable Design Decisions & Constraints
 
 - **Single source of truth:** all three outputs (preview/PDF/Excel) consume `gradesheet_service::compute_all_grades()`, eliminating divergence.
-- **Midterm/Finals + Category duality:** a grade item is mapped to both a *period* (midterm/finals) and a *category* (weighting). Category weighting takes precedence when categories exist; the quiz/exam weight fallback is used only when no categories are defined.
+- **Midterm/Finals + Category duality:** A grade item is mapped to both a *period* (midterm/finals) and a *category* (weighting). Category weighting is always applied to compute the period average; if an item is not mapped to an existing category, it is excluded from computation.
 - **Custom scale flexibility:** equivalents can be non-numeric (e.g., letter grades) — hence no interpolation on custom scales.
 - **Safe failure:** unmatched custom-scale scores are treated as failing/not-classified rather than silently passing.
 - **Auto-initialization:** defaults seeded on course creation and on first access, reducing setup friction.

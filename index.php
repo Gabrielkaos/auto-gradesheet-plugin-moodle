@@ -9,6 +9,7 @@ use local_gradesheet\helper;
 
 // ── HANDLE STATUS UPDATE (faculty setting Incomplete/Dropped/WP/In Progress) ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && optional_param('action', '', PARAM_TEXT) === 'setstatus') {
+    require_sesskey();
     $scourseid = required_param('courseid', PARAM_INT);
     $studentid = required_param('studentid', PARAM_INT);
     $status    = optional_param('status', '', PARAM_ALPHA);
@@ -20,15 +21,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && optional_param('action', '', PARAM_
 }
 
 $courseid = optional_param('courseid', 0, PARAM_INT);
+$context = null;
 
 if ($courseid > 0) {
+    $context = context_course::instance($courseid, MUST_EXIST);
     helper::ensure_course_defaults($courseid);
 }
 
 $PAGE->set_url('/local/gradesheet/index.php', $courseid > 0 ? ['courseid' => $courseid] : []);
 
-if ($courseid > 0) {
-    $PAGE->set_context(context_course::instance($courseid));
+if ($context) {
+    $PAGE->set_context($context);
 } else {
     $PAGE->set_context(context_system::instance());
 }
@@ -38,43 +41,51 @@ $PAGE->set_heading(get_string('pluginname', 'local_gradesheet'));
 
 echo $OUTPUT->header();
 
-$isadmin   = is_siteadmin();
-$isstudent = false;
-
-if ($courseid) {
-    $ctx   = context_course::instance($courseid);
-    $roles = get_user_roles($ctx, $USER->id);
-    foreach ($roles as $role) {
-        if ($role->shortname === 'student') {
-            $isstudent = true;
-            break;
-        }
-    }
-}
+$isadmin = is_siteadmin();
+$admin_too_many = false;
 
 if ($isadmin) {
-    $courses = $DB->get_records('course', null, 'fullname ASC');
-    unset($courses[1]);
+    if ($DB->count_records('course') > 500) {
+        $courses = [];
+        $admin_too_many = true;
+    } else {
+        $courses = $DB->get_records('course', null, 'fullname ASC', 'id, fullname');
+    }
 } else {
     $courses = enrol_get_my_courses();
-    unset($courses[1]);
+}
+
+global $SITE;
+if (isset($courses[$SITE->id])) {
+    unset($courses[$SITE->id]);
+}
+
+if ($admin_too_many && $courseid > 0) {
+    $courses[$courseid] = $DB->get_record('course', ['id' => $courseid], 'id, fullname');
 }
 
 echo '<div class="container mt-4">';
-echo '<form method="get" action="">';
-echo '<div class="form-group">';
-echo '<label for="courseid"><strong>Select Course:</strong></label>';
-echo '<select name="courseid" id="courseid" class="form-control" onchange="this.form.submit()">';
-echo '<option value="">-- Select a Course --</option>';
 
-foreach ($courses as $course) {
-    $selected = ($courseid == $course->id) ? 'selected' : '';
-    echo "<option value='{$course->id}' {$selected}>{$course->fullname}</option>";
+if ($admin_too_many && !$courseid) {
+    echo '<div class="alert alert-info">There are too many courses on this site to display in a dropdown. Please navigate to a specific course and click "Grade Sheet" in the course navigation.</div>';
+} else {
+    echo '<form method="get" action="">';
+    echo '<div class="form-group">';
+    echo '<label for="courseid"><strong>Select Course:</strong></label>';
+    echo '<select name="courseid" id="courseid" class="form-control" onchange="this.form.submit()">';
+    echo '<option value="">-- Select a Course --</option>';
+
+    foreach ($courses as $course) {
+        if (!$course) continue;
+        $selected = ($courseid == $course->id) ? 'selected' : '';
+        $safename = s(format_string($course->fullname));
+        echo "<option value='{$course->id}' {$selected}>{$safename}</option>";
+    }
+
+    echo '</select>';
+    echo '</div>';
+    echo '</form>';
 }
-
-echo '</select>';
-echo '</div>';
-echo '</form>';
 
 if ($courseid) {
     $cfg     = helper::load_course_config($courseid);
@@ -86,7 +97,12 @@ if ($courseid) {
         ['courseid' => $courseid], 'sortorder ASC');
     $weightvalid = helper::validate_weight_sum($courseid);
 
-    if ($isstudent && !$isadmin) {
+    if (!has_capability('local/gradesheet:manage', $context)) {
+        if (!has_capability('local/gradesheet:view', $context)) {
+            echo $OUTPUT->notification('You do not have permission to view grade sheets.', 'error');
+            echo $OUTPUT->footer();
+            exit;
+        }
         $grades = helper::compute_student_grades($courseid, $USER->id);
         $mystatus = helper::get_student_status($courseid, $USER->id);
 
@@ -102,8 +118,9 @@ if ($courseid) {
             $bg     = $grades['remarks'] === 'PASSED' ? '#d4edda' : '#f8d7da';
         }
 
+        $safecoursename = s(format_string($coursename));
         echo '<hr>';
-        echo "<h4>My Grades - {$coursename}</h4>";
+        echo "<h4>My Grades - {$safecoursename}</h4>";
         echo '
         <style>
             .grade-card { max-width: 520px; margin: 0 auto; }
@@ -134,11 +151,11 @@ if ($courseid) {
               </div>';
         echo '<div class="grade-row">
                 <span class="grade-label">Name</span>
-                <span class="grade-value">' . fullname($USER) . '</span>
+                <span class="grade-value">' . s(fullname($USER)) . '</span>
               </div>';
         echo '<div class="grade-row">
                 <span class="grade-label">Course</span>
-                <span class="grade-value">' . $coursename . '</span>
+                <span class="grade-value">' . $safecoursename . '</span>
               </div>';
 
         if ($mystatus !== '') {
@@ -174,32 +191,27 @@ if ($courseid) {
                   </div>';
             echo '<div class="grade-row" style="background:#f8f9fa">
                     <span class="grade-label">Transmuted Grade</span>
-                    <span class="grade-value" style="font-size:18px">' . $grades['transmuted'] . '</span>
+                    <span class="grade-value" style="font-size:18px">' . s($grades['transmuted']) . '</span>
                   </div>';
         }
 
         echo '</div></div>';
         $myremarks = ($mystatus !== '')
             ? s(helper::status_label($mystatus))
-            : ($grades['remarks'] !== '' ? $grades['remarks'] : '—');
+            : ($grades['remarks'] !== '' ? s($grades['remarks']) : '—');
         echo '<div class="remarks-box" style="background:' . $bg . '; color:' . $color . '">
                 ' . $myremarks . '
               </div>';
         echo '</div>';
 
     } else {
-        if (!has_capability('local/gradesheet:manage', $context)) {
-            echo $OUTPUT->notification('You do not have permission to view grade sheets.', 'error');
-            echo $OUTPUT->footer();
-            exit;
-        }
-
-        $students  = helper::get_non_teaching_students(context_course::instance($courseid));
+        $students  = helper::get_non_teaching_students($context);
         $statusmap = helper::get_status_map($courseid);
         $statusoptions = helper::status_options();
 
+        $safecoursename = s(format_string($coursename));
         echo '<hr>';
-        echo "<h4>Students and Grades - {$coursename}</h4>";
+        echo "<h4>Students and Grades - {$safecoursename}</h4>";
 
         if (!$weightvalid['valid']) {
             echo '<div class="alert alert-danger d-flex align-items-center" role="alert" style="font-size:16px; padding:15px 20px;">';
@@ -308,8 +320,8 @@ if ($courseid) {
             if ($curstatus !== '') {
                 echo "<tr data-gs-search='" . s($searchkey) . "' data-gs-remarks='' data-gs-status='" . s($statuskey) . "'>
                 <td>{$rownum}</td>
-                <td>{$student->idnumber}</td>
-                <td>{$student->lastname}, {$student->firstname}</td>";
+                <td>" . s($student->idnumber) . "</td>
+                <td>" . s($student->lastname) . ", " . s($student->firstname) . "</td>";
 
                 // Faculty override: show dashes across the board instead of computed grades.
                 $othercount++;
@@ -327,8 +339,8 @@ if ($courseid) {
 
                 echo "<tr data-gs-search='" . s($searchkey) . "' data-gs-remarks='" . s($remarkskey) . "' data-gs-status='" . s($statuskey) . "'>
                 <td>{$rownum}</td>
-                <td>{$student->idnumber}</td>
-                <td>{$student->lastname}, {$student->firstname}</td>";
+                <td>" . s($student->idnumber) . "</td>
+                <td>" . s($student->lastname) . ", " . s($student->firstname) . "</td>";
 
                 if ($g['remarks'] === 'PASSED') {
                     $passcount++;
@@ -359,6 +371,7 @@ if ($courseid) {
             echo '<td>';
             echo '<form method="post" style="margin:0">';
             echo '<input type="hidden" name="action" value="setstatus">';
+            echo '<input type="hidden" name="sesskey" value="' . sesskey() . '">';
             echo '<input type="hidden" name="courseid" value="' . $courseid . '">';
             echo '<input type="hidden" name="studentid" value="' . $student->id . '">';
             echo '<select name="status" class="form-control form-control-sm" onchange="this.form.submit()">';

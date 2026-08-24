@@ -29,7 +29,7 @@ local_gradesheet/
 │   ├── access.php              Capability definitions
 │   ├── events.php              Event observer registration
 │   ├── hooks.php               Hook callback registration
-│   ├── install.xml             XMLDB schema (3 tables)
+│   ├── install.xml             XMLDB schema (5 tables)
 │   ├── install.php             Install callback
 │   └── upgrade.php             DB upgrade steps
 ├── lang/en/local_gradesheet.php  Language strings

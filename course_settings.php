@@ -238,7 +238,7 @@ echo $OUTPUT->header();
 
 <div class="container mt-4">
     <h2>Grade Sheet Settings</h2>
-    <h5 class="text-muted">Course: <?php echo format_string($coursename); ?></h5>
+    <h5 class="text-muted">Course: <?php echo s(format_string($coursename)); ?></h5>
     <a href="index.php?courseid=<?php echo $courseid; ?>" class="btn btn-secondary btn-sm mb-3">← Back to Grade Sheet</a>
     <hr>
 

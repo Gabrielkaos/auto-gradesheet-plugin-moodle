@@ -60,6 +60,10 @@ class helper {
             return;
         }
 
+        if (!is_enrolled(\context_course::instance($courseid), $userid)) {
+            return;
+        }
+
         $existing = $DB->get_record('local_gradesheet_status', ['courseid' => $courseid, 'userid' => $userid]);
 
         if ($status === '') {
@@ -164,7 +168,7 @@ class helper {
             $custom = self::get_custom_transmute_rows($courseid);
             if (!empty($custom)) {
                 foreach ($custom as $row) {
-                    if ($grade >= $row->minscore && $grade <= $row->maxscore) {
+                    if ($grade >= $row->minscore) {
                         return $row->equivalent;
                     }
                 }
@@ -189,11 +193,12 @@ class helper {
         ];
 
         foreach ($bands as [$min, $max, $eqMin, $eqMax]) {
-            if ($grade >= $min && $grade <= $max) {
+            if ($grade >= $min) {
                 if ($max == $min) {
                     return number_format($eqMax, 1);
                 }
-                $equiv = $eqMax - (($max - $grade) / ($max - $min)) * ($eqMax - $eqMin);
+                $calcGrade = min($grade, $max);
+                $equiv = $eqMax - (($max - $calcGrade) / ($max - $min)) * ($eqMax - $eqMin);
                 return number_format(round($equiv, 1), 1);
             }
         }
@@ -230,7 +235,7 @@ class helper {
             $custom = self::get_custom_transmute_rows($courseid);
             if (!empty($custom)) {
                 foreach ($custom as $row) {
-                    if ($grade >= $row->minscore && $grade <= $row->maxscore) {
+                    if ($grade >= $row->minscore) {
                         return (bool)$row->ispassing;
                     }
                 }
@@ -270,22 +275,15 @@ class helper {
     }
 
     public static function get_non_teaching_students(\context_course $context): array {
-        $students = get_enrolled_users($context, '', 0, 'u.*', 'u.lastname ASC, u.firstname ASC');
-        $filtered = [];
+        $all = get_enrolled_users($context, '', 0, 'u.*', 'u.lastname ASC, u.firstname ASC');
+        $teachers = get_enrolled_users($context, 'local/gradesheet:manage', 0, 'u.id');
 
-        foreach ($students as $student) {
+        $filtered = [];
+        foreach ($all as $student) {
             if (is_siteadmin($student->id)) {
                 continue;
             }
-            $roles     = get_user_roles($context, $student->id);
-            $isteacher = false;
-            foreach ($roles as $role) {
-                if ($role->shortname === 'teacher' || $role->shortname === 'editingteacher') {
-                    $isteacher = true;
-                    break;
-                }
-            }
-            if (!$isteacher) {
+            if (!isset($teachers[$student->id])) {
                 $filtered[] = $student;
             }
         }
@@ -338,6 +336,49 @@ class helper {
         return $counts;
     }
 
+    private static $course_grade_data = [];
+
+    private static function prefetch_course_grades(int $courseid): void {
+        global $DB;
+        if (isset(self::$course_grade_data[$courseid])) {
+            return;
+        }
+
+        $gitems = $DB->get_records_select(
+            'grade_items',
+            'courseid = ? AND itemtype != ? AND itemname IS NOT NULL',
+            [$courseid, 'course']
+        );
+        $categories = $DB->get_records('local_gradesheet_categories',
+            ['courseid' => $courseid], 'sortorder ASC');
+
+        $maps = [];
+        $grades = [];
+        if (!empty($gitems)) {
+            $itemids = array_keys($gitems);
+            list($insql, $inparams) = $DB->get_in_or_equal($itemids);
+            
+            $maprecs = $DB->get_records_select('local_gradesheet_itemmap', 
+                "courseid = ? AND gradeitemid $insql", array_merge([$courseid], $inparams));
+            foreach ($maprecs as $m) {
+                $maps[$m->gradeitemid] = $m;
+            }
+
+            $graderecs = $DB->get_records_select('grade_grades', 
+                "itemid $insql", $inparams);
+            foreach ($graderecs as $g) {
+                $grades[$g->itemid][$g->userid] = $g;
+            }
+        }
+
+        self::$course_grade_data[$courseid] = [
+            'gitems' => $gitems,
+            'categories' => $categories,
+            'maps' => $maps,
+            'grades' => $grades,
+        ];
+    }
+
     /**
      * Computes a student's Midterm/Finals period values and final average.
      *
@@ -353,16 +394,13 @@ class helper {
      * @return array{midterm:?float, finals:?float, average:?float, cattotals:array, transmuted:string, remarks:string}
      */
     public static function compute_student_grades(int $courseid, int $studentid): array {
-        global $DB;
-
-        $gitems = $DB->get_records_select(
-            'grade_items',
-            'courseid = ? AND itemtype != ? AND itemname IS NOT NULL',
-            [$courseid, 'course']
-        );
-
-        $categories = $DB->get_records('local_gradesheet_categories',
-            ['courseid' => $courseid], 'sortorder ASC');
+        self::prefetch_course_grades($courseid);
+        $data = self::$course_grade_data[$courseid];
+        
+        $gitems     = $data['gitems'];
+        $categories = $data['categories'];
+        $maps       = $data['maps'];
+        $grades     = $data['grades'];
 
         $cattotals = [];
         foreach ($categories as $cat) {
@@ -378,10 +416,18 @@ class helper {
         $periodcats = ['midterm' => [], 'finals' => []];
 
         foreach ($gitems as $gitem) {
-            $ggrade = $DB->get_record('grade_grades', [
-                'itemid' => $gitem->id,
-                'userid' => $studentid
-            ]);
+            $gi = new \grade_item((array)$gitem, false);
+            if ($gi->is_hidden()) {
+                continue;
+            }
+
+            $ggrade = $grades[$gitem->id][$studentid] ?? null;
+            if ($ggrade) {
+                $gg = new \grade_grade((array)$ggrade, false);
+                if ($gg->is_hidden() || $gg->is_excluded()) {
+                    continue;
+                }
+            }
 
             $val = ($ggrade && $ggrade->finalgrade !== null)
                 ? floatval($ggrade->finalgrade) : 0;
@@ -391,10 +437,7 @@ class helper {
                 $val = ($val / $max) * 100;
             }
 
-            $map    = $DB->get_record('local_gradesheet_itemmap', [
-                'courseid'    => $courseid,
-                'gradeitemid' => $gitem->id,
-            ]);
+            $map    = $maps[$gitem->id] ?? null;
             $period = ($map && $map->period === 'midterm') ? 'midterm' : 'finals';
             $catid  = $map ? (int)$map->categoryid : 0;
 
@@ -479,9 +522,9 @@ class helper {
             $total += $cat->weight;
         }
         return [
-            'valid' => count($categories) > 0 && abs($total - 100) < 0.01,
-            'total' => $total,
-            'count' => count($categories),
+            'valid' => count($categories) > 0 && abs($total - 100) <= 0.01,
+            'total' => round($total, 2),
+            'count' => count($categories)
         ];
     }
 

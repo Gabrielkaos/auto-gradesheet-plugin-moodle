@@ -53,24 +53,8 @@ $PAGE->set_heading('Report of Grades Preview');
 // so both constants can use the same, slightly smaller, row budget.
 // Tune these if rows overflow/underflow a printed page in your browser.
 $rowsperpage    = 20; // Max student rows per page (all pages now include signatures).
-$rowsonlastpage = 20; // Kept separate in case you want the last page to differ later.
 
-$totalrows = count($rows);
-$pages = [];
-
-if ($totalrows <= $rowsonlastpage) {
-    $pages[] = $rows;
-} else {
-    $offset    = 0;
-    $remaining = $totalrows;
-    while ($remaining > $rowsonlastpage) {
-        $take = min($rowsperpage, $remaining - $rowsonlastpage);
-        $pages[] = array_slice($rows, $offset, $take);
-        $offset    += $take;
-        $remaining -= $take;
-    }
-    $pages[] = array_slice($rows, $offset);
-}
+$pages = array_chunk($rows, $rowsperpage);
 
 $totalpages = count($pages);
 
@@ -156,7 +140,7 @@ echo $OUTPUT->header();
 <div class="preview-toolbar">
     <div>
         <strong>Report of Grades Preview</strong>
-        <span class="text-muted ml-2">- <?php echo $coursename; ?></span>
+        <span class="text-muted ml-2">- <?php echo s(format_string($coursename)); ?></span>
         <span class="text-muted ml-2">(<?php echo $totalpages; ?> page<?php echo $totalpages === 1 ? '' : 's'; ?>)</span>
     </div>
     <div>
