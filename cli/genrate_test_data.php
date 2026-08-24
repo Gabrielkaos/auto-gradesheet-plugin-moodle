@@ -177,9 +177,10 @@ foreach ($itemspecs as $name => [$period, $catname]) {
 }
 
 // ---------------------------------------------------------------------
-// 3. Create the students and enrol them.
+// 3. Create the students, teacher and enrol them.
 // ---------------------------------------------------------------------
 $studentrole = $DB->get_record('role', ['shortname' => 'student'], '*', MUST_EXIST);
+$teacherrole = $DB->get_record('role', ['shortname' => 'editingteacher'], '*', MUST_EXIST);
 
 $enrolplugin = enrol_get_plugin('manual');
 $instance = $DB->get_record('enrol', ['courseid' => $courseid, 'enrol' => 'manual']);
@@ -218,7 +219,34 @@ for ($n = 1; $n <= $numstudents; $n++) {
     $enrolplugin->enrol_user($instance, $userid, $studentrole->id);
 }
 
-cli_writeln("Created and enrolled {$numstudents} test students.");
+$teacher_username = 'testteacher';
+$teacher = $DB->get_record('user', ['username' => $teacher_username, 'deleted' => 0]);
+
+if (!$teacher) {
+    $newteacher = new stdClass();
+    $newteacher->username   = $teacher_username;
+    $newteacher->password    = 'Teacherpass123!';
+    $newteacher->firstname   = 'Test';
+    $newteacher->lastname    = 'Teacher';
+    $newteacher->email       = $teacher_username . '@example.invalid';
+    $newteacher->auth        = 'manual';
+    $newteacher->confirmed   = 1;
+    $newteacher->mnethostid  = $CFG->mnet_localhost_id;
+    $newteacher->idnumber    = 'T-STATIC';
+    
+    $teacherid = user_create_user($newteacher, true, false);
+} else {
+    $teacherid = $teacher->id;
+    // Ensure the password is what we expect
+    $update = new stdClass();
+    $update->id = $teacher->id;
+    $update->password = 'Teacherpass123!';
+    user_update_user($update, true, false);
+}
+
+$enrolplugin->enrol_user($instance, $teacherid, $teacherrole->id);
+
+cli_writeln("Created and enrolled {$numstudents} test students and 1 teacher.");
 
 // ---------------------------------------------------------------------
 // 4. Assign randomized grades for each grade item.
@@ -255,6 +283,14 @@ cli_writeln("  Course:    {$fullname}");
 cli_writeln("  Shortname: {$shortname}");
 cli_writeln("  Course ID: {$courseid}");
 cli_writeln("  URL:       {$CFG->wwwroot}/local/gradesheet/index.php?courseid={$courseid}");
+cli_writeln('');
+cli_writeln('Test Teacher Login:');
+cli_writeln("  Username: {$teacher_username}");
+cli_writeln('  Password: Teacherpass123!');
+cli_writeln('');
+cli_writeln('Example Student Login:');
+cli_writeln("  Username: gstest_{$courseid}_1");
+cli_writeln('  Password: Testpass123!');
 cli_writeln('');
 cli_writeln('Next steps:');
 cli_writeln('  Grade items are already mapped (Midterm/Finals x Quiz/Project/Exam).');
