@@ -165,16 +165,6 @@ if ($courseid) {
                     <span class="grade-label">Status</span>
                     <span class="grade-value">' . s(helper::status_label($mystatus)) . '</span>
                   </div>';
-        } else if (!empty($categories)) {
-            foreach ($grades['cattotals'] as $catid => $data) {
-                if ($data['count'] > 0) {
-                    $catAvg = $data['total'] / $data['count'];
-                    echo '<div class="grade-row">
-                            <span class="grade-label">' . s($data['name']) . ' (' . $data['weight'] . '%)</span>
-                            <span class="grade-value">' . number_format($catAvg, 2) . '</span>
-                          </div>';
-                }
-            }
         } else {
             echo '<div class="grade-row">
                     <span class="grade-label">Midterm</span>
