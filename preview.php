@@ -36,6 +36,7 @@ $rows          = $data['rows'];
 $weightvalid = helper::validate_weight_sum($courseid);
 if (!$weightvalid['valid']) {
     echo $OUTPUT->header();
+echo '<div class="gradesheet-preview-page">';
     echo '<div class="container mt-4">';
     echo '<div class="alert alert-danger d-flex align-items-center" role="alert" style="font-size:16px; padding:20px 25px;">';
     echo '<span style="font-size:36px; margin-right:15px;">&#9888;</span>';
@@ -51,7 +52,8 @@ if (!$weightvalid['valid']) {
     echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-primary">Go to Settings</a> ';
     echo '<a href="index.php?courseid=' . $courseid . '" class="btn btn-secondary">Back to Grade Sheet</a>';
     echo '</div>';
-    echo $OUTPUT->footer();
+    echo '</div>';
+echo $OUTPUT->footer();
     exit;
 }
 
@@ -70,83 +72,10 @@ $pages = array_chunk($rows, $rowsperpage);
 $totalpages = count($pages);
 
 echo $OUTPUT->header();
+echo '<div class="gradesheet-preview-page">';
 ?>
 
-<style>
-.preview-toolbar {
-    background: #f8f9fa;
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    padding: 12px 20px;
-    margin-bottom: 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.gradesheet-pages {
-    background: #e9ebee;
-    padding: 30px 0;
-}
-.gradesheet-page {
-    background: white;
-    border: 1px solid #ccc;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-    padding: 30px 35px;
-    max-width: 794px;
-    min-height: 1123px;
-    margin: 0 auto 40px auto;
-    font-family: Arial, sans-serif;
-    font-size: 10px;
-    position: relative;
-    display: flex;
-    flex-direction: column;
-}
-.gs-page-label {
-    position: absolute;
-    top: 10px;
-    right: 15px;
-    font-size: 9px;
-    color: #999;
-}
-.gs-info-legend { display: flex; gap: 10px; margin-bottom: 12px; }
-.gs-info { flex: 1; font-size: 9.5px; }
-.gs-info table td { padding: 1px 4px; vertical-align: top; }
-.gs-info table td:first-child { font-style: italic; white-space: nowrap; color: #333; }
-.gs-legend { font-size: 8px; }
-.gs-legend table { border-collapse: collapse; }
-.gs-legend table th, .gs-legend table td { border: 1px solid #999; padding: 1px 4px; text-align: center; }
-.gs-legend table th { font-weight: bold; background: #f0f0f0; }
-.gs-table { width: 100%; border-collapse: collapse; font-size: 9.5px; margin-bottom: 16px; }
-.gs-table th { border: 1px solid #333; padding: 5px 3px; text-align: center; font-weight: bold; background: white; }
-.gs-table td { border: 1px solid #555; padding: 4px 3px; text-align: center; }
-.gs-table td.name-col { text-align: left; padding-left: 6px; }
-.gs-table tr:nth-child(even) td { background: #f9f9f9; }
-.failed-cell { color: #b40000; }
-.gs-signatures { margin-top: 4px; font-size: 9px; }
-.gs-sig-row { display: flex; gap: 20px; margin-bottom: 8px; }
-.gs-sig-block { flex: 1; }
-.gs-sig-label { font-style: italic; margin-bottom: 4px; }
-.gs-sig-name { font-weight: bold; text-align: center; margin-top: 8px; }
-.gs-sig-title { text-align: center; font-style: italic; font-size: 8.5px; }
-.gs-footer { border-top: 1px solid #333; margin-top: auto; padding-top: 4px;
-             display: flex; justify-content: space-between; font-size: 8px; color: #333; }
-@media print {
-    body * { visibility: hidden; }
-    .gradesheet-page, .gradesheet-page * { visibility: visible; }
-    .gradesheet-pages { background: none; padding: 0; }
-    .gradesheet-page {
-        position: relative;
-        box-shadow: none; border: none;
-        padding: 15mm 20mm; max-width: 100%; width: 100%;
-        min-height: 100vh;
-        margin: 0;
-        page-break-after: always;
-    }
-    .gradesheet-page:last-child { page-break-after: auto; }
-    .gs-page-label { display: none; }
-    .gs-table tr:nth-child(even) td { background: white !important; }
-}
-</style>
+
 
 <div class="preview-toolbar">
     <div>
@@ -290,4 +219,5 @@ foreach ($pages as $pageindex => $pagerows):
 <?php endforeach; ?>
 </div>
 
-<?php echo $OUTPUT->footer(); ?>
+<?php echo '</div>';
+echo $OUTPUT->footer(); ?>

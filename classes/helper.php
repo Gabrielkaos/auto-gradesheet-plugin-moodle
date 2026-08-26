@@ -605,4 +605,38 @@ class helper {
         return $desc !== '' ? s($desc)
             : self::format_score($row->minscore) . '-' . self::format_score($row->maxscore);
     }
+
+    /**
+     * Renders a consistent alert banner across the gradesheet UI.
+     */
+    public static function render_alert(string $message, string $type = 'info', string $icon = '', string $action_html = ''): string {
+        $html = '<div class="alert alert-' . htmlspecialchars($type) . ' d-flex align-items-center gs-alert" role="alert">';
+        if ($icon !== '') {
+            $html .= '<span class="gs-alert-icon">' . $icon . '</span>';
+        }
+        $html .= '<div class="w-100">' . $message . '</div>';
+        if ($action_html !== '') {
+            $html .= '<div class="ml-auto">' . $action_html . '</div>';
+        }
+        $html .= '</div>';
+        return $html;
+    }
+
+    /**
+     * Renders standard table action buttons (edit / delete).
+     */
+    public static function render_table_actions(string $edit_url, string $delete_action, string $sesskey, string $delete_label = 'Delete', bool $delete_disabled = false, string $extra_hidden = ''): string {
+        $html = '<a href="' . htmlspecialchars($edit_url) . '" class="btn btn-warning btn-sm me-2">Edit</a>';
+        if ($delete_disabled) {
+            $html .= '<button type="button" class="btn btn-danger btn-sm disabled" tabindex="-1">' . htmlspecialchars($delete_label) . '</button>';
+        } else {
+            $html .= '<form method="post" class="d-inline m-0">';
+            $html .= '<input type="hidden" name="action" value="' . htmlspecialchars($delete_action) . '">';
+            $html .= '<input type="hidden" name="sesskey" value="' . htmlspecialchars($sesskey) . '">';
+            $html .= $extra_hidden;
+            $html .= '<button type="submit" class="btn btn-danger btn-sm">' . htmlspecialchars($delete_label) . '</button>';
+            $html .= '</form>';
+        }
+        return $html;
+    }
 }

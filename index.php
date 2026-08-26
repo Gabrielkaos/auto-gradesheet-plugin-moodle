@@ -42,6 +42,7 @@ $PAGE->set_title(get_string('pluginname', 'local_gradesheet'));
 $PAGE->set_heading(get_string('pluginname', 'local_gradesheet'));
 
 echo $OUTPUT->header();
+echo '<div class="local-gradesheet-page">';
 
 $isadmin = is_siteadmin();
 $admin_too_many = false;
@@ -69,7 +70,7 @@ if ($admin_too_many && $courseid > 0) {
 echo '<div class="container mt-4">';
 
 if ($admin_too_many && !$courseid) {
-    echo '<div class="alert alert-info">There are too many courses on this site to display in a dropdown. Please navigate to a specific course and click "Grade Sheet" in the course navigation.</div>';
+    echo \local_gradesheet\helper::render_alert("There are too many courses on this site to display in a dropdown. Please navigate to a specific course and click &quot;Grade Sheet&quot; in the course navigation.", "info");
 } else {
     echo '<form method="get" action="">';
     echo '<div class="form-group">';
@@ -102,7 +103,8 @@ if ($courseid) {
     if (!has_capability('local/gradesheet:manage', $context)) {
         if (!has_capability('local/gradesheet:view', $context)) {
             echo $OUTPUT->notification('You do not have permission to view grade sheets.', 'error');
-            echo $OUTPUT->footer();
+            echo '</div>';
+echo $OUTPUT->footer();
             exit;
         }
         $grades = helper::compute_student_grades($courseid, $USER->id);
@@ -124,23 +126,7 @@ if ($courseid) {
         echo '<hr>';
         echo "<h4>My Grades - {$safecoursename}</h4>";
         echo '
-        <style>
-            .grade-card { max-width: 520px; margin: 0 auto; }
-            .grade-card .card-header {
-                background: #1a1a2e; color: white;
-                font-size: 16px; font-weight: bold; text-align: center;
-            }
-            .grade-row { display: flex; justify-content: space-between;
-                         padding: 10px 15px; border-bottom: 1px solid #eee; }
-            .grade-row:last-child { border-bottom: none; }
-            .grade-label { color: #555; font-weight: 500; }
-            .grade-value { font-weight: bold; }
-            .remarks-box {
-                text-align: center; padding: 15px;
-                border-radius: 8px; margin-top: 15px;
-                font-size: 20px; font-weight: bold;
-            }
-        </style>';
+        ';
 
         echo '<div class="grade-card">';
         echo '<div class="card">';
@@ -177,15 +163,15 @@ if ($courseid) {
         }
 
         if ($mystatus === '') {
-            echo '<div class="grade-row" style="background:#f8f9fa">
+            echo '<div class="grade-row" class="grade-row-highlight">
                     <span class="grade-label">Final Average</span>
                     <span class="grade-value">' . ($grades['average'] === null ? '—' : number_format($grades['average'], 2)) . '</span>
                   </div>';
             $is_custom = helper::get_custom_transmute_rows($courseid) ? true : false;
             if (!$is_custom) {
-                echo '<div class="grade-row" style="background:#f8f9fa">
+                echo '<div class="grade-row" class="grade-row-highlight">
                         <span class="grade-label">Transmuted Grade</span>
-                        <span class="grade-value" style="font-size:18px">' . s($grades['transmuted']) . '</span>
+                        <span class="grade-value" class="grade-value-large">' . s($grades['transmuted']) . '</span>
                       </div>';
             }
         }
@@ -218,7 +204,7 @@ if ($courseid) {
                 echo 'You have <strong>no categories</strong> defined. ';
             }
             echo 'Printing and exporting are <strong>disabled</strong> until this is corrected. ';
-            echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-light btn-sm ml-2"><strong>Go to Settings</strong></a>';
+            echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-light btn-sm ms-2"><strong>Go to Settings</strong></a>';
             echo '</div></div>';
         }
 
@@ -241,7 +227,7 @@ if ($courseid) {
                 $parts[] = get_string('warnnoperioditems', 'local_gradesheet', 'Finals');
             }
             echo implode(' ', $parts);
-            echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-light btn-sm ml-2"><strong>Go to Settings</strong></a>';
+            echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-light btn-sm ms-2"><strong>Go to Settings</strong></a>';
             echo '</div></div>';
         }
 
@@ -282,7 +268,7 @@ if ($courseid) {
         echo '</div>';
 
         echo '<div class="col-md-1 mb-2">';
-        echo '<button type="button" class="btn btn-outline-secondary btn-block" onclick="gradesheetResetFilters()" title="Clear filters">&#10005;</button>';
+        echo '<button type="button" class="btn btn-outline-secondary w-100" onclick="gradesheetResetFilters()" title="Clear filters">&#10005;</button>';
         echo '</div>';
 
         echo '<div class="col-12"><small class="form-text text-muted" id="gradesheetSearchCount"></small></div>';
@@ -364,7 +350,7 @@ if ($courseid) {
 
             // Status-setting control — always available regardless of current status.
             echo '<td>';
-            echo '<form method="post" style="margin:0">';
+            echo '<form method="post" class="m-0">';
             echo '<input type="hidden" name="action" value="setstatus">';
             echo '<input type="hidden" name="sesskey" value="' . sesskey() . '">';
             echo '<input type="hidden" name="courseid" value="' . $courseid . '">';
@@ -384,7 +370,7 @@ if ($courseid) {
         }
 
         echo '</tbody></table>';
-        echo '<div id="gradesheetNoResults" class="alert alert-info" style="display:none">No students match your search.</div>';
+        echo '<div id="gradesheetNoResults" style="display:none">' . \local_gradesheet\helper::render_alert("No students match your search.", "info") . '</div>';
 
         $total    = $passcount + $failcount;
         $passrate = $total > 0 ? round(($passcount / $total) * 100, 1) : 0;
@@ -458,5 +444,6 @@ if ($courseid) {
     echo '</div>';
 }
 
+echo '</div>';
 echo '</div>';
 echo $OUTPUT->footer();

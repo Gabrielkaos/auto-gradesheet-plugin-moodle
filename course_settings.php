@@ -259,12 +259,13 @@ $scalewarnings  = \local_gradesheet\helper::validate_custom_scale($courseid);
 $displaylegend  = \local_gradesheet\helper::get_rating_legend($usingcustomscale ? $courseid : null);
 
 echo $OUTPUT->header();
+echo '<div class="local-gradesheet-page">';
 ?>
 
 <div class="container mt-4">
     <h2>Grade Sheet Settings</h2>
     <h5 class="text-muted">Course: <?php echo s(format_string($coursename)); ?></h5>
-    <a href="index.php?courseid=<?php echo $courseid; ?>" class="btn btn-secondary btn-sm mb-3">← Back to Grade Sheet</a>
+    <a href="index.php?courseid=<?php echo $courseid; ?>" class="btn btn-secondary mb-3">← Back to Grade Sheet</a>
     <hr>
 
     <!-- SECTION 1: Course Details -->
@@ -458,7 +459,7 @@ echo $OUTPUT->header();
                                placeholder="e.g. 30" min="0" max="100" step="0.01">
                     </div>
                     <div class="col-md-2 mt-2">
-                        <button type="submit" class="btn btn-success btn-block">Add</button>
+                        <button type="submit" class="btn btn-primary w-100">Add</button>
                     </div>
                 </div>
             </form>
@@ -490,11 +491,9 @@ echo $OUTPUT->header();
             <?php endif; ?>
 
             <?php if (empty($categories)): ?>
-                <div class="alert alert-warning">
-                    ⚠ Please add grade categories first before mapping grade items.
-                </div>
+                <?php echo \local_gradesheet\helper::render_alert("Please add grade categories first before mapping grade items.", "warning", "⚠"); ?>
             <?php elseif (empty($gitems)): ?>
-                <div class="alert alert-warning">No grade items found in this course.</div>
+                <?php echo \local_gradesheet\helper::render_alert("No grade items found in this course.", "warning"); ?>
             <?php else: ?>
                 <p class="text-muted">Assign each grade item to a <strong>Category</strong> and a <strong>Period</strong>.</p>
                 <form method="post">
@@ -557,30 +556,24 @@ echo $OUTPUT->header();
             </p>
 
             <?php if ($usingcustomscale): ?>
-                <div class="alert alert-info d-flex justify-content-between align-items-center">
-                    <span>✓ This course is using a <strong>custom</strong> grading scale.</span>
-                    <form method="post" onsubmit="return confirm('Delete all custom brackets and revert to the default ESSU scale?');">
-                        <input type="hidden" name="action" value="resetscale">
-                        <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
-                        <button type="submit" class="btn btn-outline-danger btn-sm">Reset to Default Scale</button>
-                    </form>
-                </div>
+                <?php 
+                    $reset_form = '<form method="post" onsubmit="return confirm(\'Delete all custom brackets and revert to the default ESSU scale?\\\');"><input type="hidden" name="action" value="resetscale"><input type="hidden" name="sesskey" value="' . sesskey() . '"><button type="submit" class="btn btn-danger btn-sm">Reset to Default Scale</button></form>';
+                    echo \local_gradesheet\helper::render_alert("This course is using a <strong>custom</strong> grading scale.", "info", "✓", $reset_form);
+                ?>
                 
                 <?php if (!empty($scalewarnings)): ?>
-                    <div class="alert alert-warning">
-                        <strong><span style="font-size:18px;">&#9888;</span> Scale Configuration Warnings:</strong>
-                        <ul class="mb-0 mt-2">
-                            <?php foreach ($scalewarnings as $warn): ?>
-                                <li><?php echo $warn; ?></li>
-                            <?php endforeach; ?>
-                        </ul>
-                    </div>
+                    <?php
+                        $warn_html = "<strong>Scale Configuration Warnings:</strong><ul class=\"mb-0 mt-2\">";
+                        foreach ($scalewarnings as $warn) {
+                            $warn_html .= "<li>" . $warn . "</li>";
+                        }
+                        $warn_html .= "</ul>";
+                        echo \local_gradesheet\helper::render_alert($warn_html, "warning", "&#9888;");
+                    ?>
                 <?php endif; ?>
 
             <?php else: ?>
-                <div class="alert alert-secondary">
-                    Currently using the <strong>default ESSU</strong> scale (no custom brackets defined).
-                </div>
+                <?php echo \local_gradesheet\helper::render_alert("Currently using the <strong>default ESSU</strong> scale (no custom brackets defined).", "secondary"); ?>
             <?php endif; ?>
 
             <table class="table table-bordered table-sm mb-3">
@@ -627,15 +620,14 @@ echo $OUTPUT->header();
                             <td><?php echo s($row->descriptor); ?></td>
                             <td><?php echo $row->ispassing ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'; ?></td>
                             <td>
-                                <a href="course_settings.php?courseid=<?php echo $courseid; ?>&edittid=<?php echo $row->id; ?>#grading-scale"
-                                   class="btn btn-warning btn-sm">Edit</a>
-                                <form method="post" style="display:inline">
-                                    <input type="hidden" name="action" value="deletetransmute">
-                                    <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
-                                    <input type="hidden" name="tid" value="<?php echo $row->id; ?>">
-                                    <button type="submit" class="btn btn-danger btn-sm"
-                                            onclick="return confirm('Delete this bracket?')">Delete</button>
-                                </form>
+                                <?php echo \local_gradesheet\helper::render_table_actions(
+                                    "course_settings.php?courseid=" . $courseid . "&edittid=" . $row->id . "#grading-scale",
+                                    "deletetransmute",
+                                    sesskey(),
+                                    "Delete",
+                                    false,
+                                    '<input type="hidden" name="tid" value="' . $row->id . '">'
+                                ); ?>
                             </td>
                         </tr>
                         <?php endif; ?>
@@ -677,7 +669,7 @@ echo $OUTPUT->header();
                         </div>
                     </div>
                     <div class="col-md-2 mt-2">
-                        <button type="submit" class="btn btn-success btn-block">Add</button>
+                        <button type="submit" class="btn btn-primary w-100">Add</button>
                     </div>
                 </div>
             </form>
@@ -685,4 +677,5 @@ echo $OUTPUT->header();
     </div>
 </div>
 
-<?php echo $OUTPUT->footer(); ?>
+<?php echo '</div>';
+echo $OUTPUT->footer(); ?>
