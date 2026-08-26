@@ -6,9 +6,6 @@
             <FIELDS>
                 <FIELD NAME="id"             TYPE="int"    LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
                 <FIELD NAME="courseid"       TYPE="int"    LENGTH="10" NOTNULL="true"/>
-                <FIELD NAME="quizweight"     TYPE="number" LENGTH="5"  DECIMALS="2" NOTNULL="true" DEFAULT="50"/>
-                <FIELD NAME="examweight"     TYPE="number" LENGTH="5"  DECIMALS="2" NOTNULL="true" DEFAULT="50"/>
-                <FIELD NAME="activityweight" TYPE="number" LENGTH="5"  DECIMALS="2" NOTNULL="true" DEFAULT="0"/>
                 <FIELD NAME="timecreated"    TYPE="int"    LENGTH="10" NOTNULL="true" DEFAULT="0"/>
                 <FIELD NAME="timemodified"   TYPE="int"    LENGTH="10" NOTNULL="true" DEFAULT="0"/>
                 <FIELD NAME="semester"       TYPE="char"   LENGTH="50" NOTNULL="false" DEFAULT="Second Semester"/>
@@ -85,8 +82,6 @@
                 <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
                 <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="" SEQUENCE="false"
                     COMMENT="'' = active/computed normally, or one of: inc, dropped, wp, ip"/>
-                <FIELD NAME="note" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
-                <FIELD NAME="usermodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
                 <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
             </FIELDS>
             <KEYS>

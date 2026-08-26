@@ -237,9 +237,6 @@ class hooks {
                 'department_head' => $resolve_signatory('department_head'),
                 'registrar'       => $resolve_signatory('registrar'),
                 'college_dean'    => $resolve_signatory('college_dean'),
-                'quizweight'      => $existing ? $existing->quizweight : 50.00,
-                'examweight'      => $existing ? $existing->examweight : 50.00,
-                'activityweight'  => $existing ? $existing->activityweight : 0.00,
                 'timemodified'    => time(),
             ];
 

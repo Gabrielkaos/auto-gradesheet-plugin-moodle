@@ -114,5 +114,31 @@ function xmldb_local_gradesheet_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026081900, 'local', 'gradesheet');
     }
 
+    if ($oldversion < 2026082600) {
+        $table_config = new xmldb_table('local_gradesheet_config');
+        $fields_config = [
+            new xmldb_field('quizweight'),
+            new xmldb_field('examweight'),
+            new xmldb_field('activityweight')
+        ];
+        foreach ($fields_config as $field) {
+            if ($dbman->field_exists($table_config, $field)) {
+                $dbman->drop_field($table_config, $field);
+            }
+        }
+
+        $table_status = new xmldb_table('local_gradesheet_status');
+        $fields_status = [
+            new xmldb_field('note'),
+            new xmldb_field('usermodified')
+        ];
+        foreach ($fields_status as $field) {
+            if ($dbman->field_exists($table_status, $field)) {
+                $dbman->drop_field($table_status, $field);
+            }
+        }
+        upgrade_plugin_savepoint(true, 2026082600, 'local', 'gradesheet');
+    }
+
     return true;
 }

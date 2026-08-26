@@ -72,7 +72,7 @@ Defined in `db/install.xml`; evolution tracked in `db/upgrade.php`.
 
 ### 4.1 `local_gradesheet_config` (per-course settings)
 - `id`, `courseid` (UNIQUE)
-- Grading weights: `quizweight` (default 50), `examweight` (default 50), `activityweight` (default 0)
+- Grading weights: (Computation strictly follows category weights within periods)
 - Report header: `semester`, `schoolyear`, `coursenumber`, `descriptive`, `courseandyear`, `schedule`, `units`
 - Signatories: `instructor`, `department_head`, `registrar`, `college_dean`
 - `timecreated`, `timemodified`
@@ -91,7 +91,7 @@ Defined in `db/install.xml`; evolution tracked in `db/upgrade.php`.
 - Optional per-course override of the default ESSU scale. If any row exists for a course, the **custom scale is active** for that course.
 
 ### 4.5 `local_gradesheet_status` (faculty status overrides)
-- `id`, `courseid`, `userid` (UNIQUE pair), `status` (`''`=active, `inc`, `dropped`, `wp`, `ip`), `note`, `usermodified`, `timemodified`
+- `id`, `courseid`, `userid` (UNIQUE pair), `status` (`''`=active, `inc`, `dropped`, `wp`, `ip`), `timemodified`
 - When set, the student's row shows dashes and the status label; excluded from pass/fail statistics.
 
 ---
@@ -111,7 +111,6 @@ Defined in `db/install.xml`; evolution tracked in `db/upgrade.php`.
 - **Final Average Calculation**:
   - The final average is a strict 50/50 split between the two periods: `finalAverage = (midterm + finals) / 2`.
   - If only one period has graded items, that period's average becomes the final average.
-  - *Note:* The `quizweight` and `examweight` fields in the config table are legacy/unused; computation strictly follows category weights within periods.
 
 ### 5.3 Transmutation to equivalent rating (`transmute_equiv`, helper.php:156)
 - Returns `'-'` for null/empty/non-numeric input.

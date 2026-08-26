@@ -75,7 +75,6 @@ class helper {
 
         if ($existing) {
             $existing->status       = $status;
-            $existing->usermodified = $USER->id;
             $existing->timemodified = time();
             $DB->update_record('local_gradesheet_status', $existing);
         } else {
@@ -83,8 +82,6 @@ class helper {
                 'courseid'     => $courseid,
                 'userid'       => $userid,
                 'status'       => $status,
-                'note'         => null,
-                'usermodified' => $USER->id,
                 'timemodified' => time(),
             ]);
         }
@@ -103,9 +100,6 @@ class helper {
         if (!$config) {
             $configdata = (object)[
                 'courseid'        => $courseid,
-                'quizweight'      => 50.00,
-                'examweight'      => 50.00,
-                'activityweight'  => 0.00,
                 'timecreated'     => time(),
                 'timemodified'    => time(),
                 'semester'        => 'First Semester',
@@ -268,10 +262,6 @@ class helper {
             'depthead'      => ($config && !empty($config->department_head)) ? $config->department_head : '',
             'registrar'     => ($config && !empty($config->registrar))       ? $config->registrar       : '',
             'collegedean'   => ($config && !empty($config->college_dean))    ? $config->college_dean    : '',
-            'midweight'     => $config ? floatval($config->quizweight) / 100 : 0.50,
-            'finweight'     => $config ? floatval($config->examweight) / 100 : 0.50,
-            'mpct'          => $config ? $config->quizweight  : 50,
-            'fpct'          => $config ? $config->examweight  : 50,
         ];
     }
 

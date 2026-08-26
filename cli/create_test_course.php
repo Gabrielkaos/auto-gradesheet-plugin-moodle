@@ -53,8 +53,6 @@ if ($config) {
     echo "     - School Year:  {$config->schoolyear}\n";
     echo "     - Course Code: {$config->coursenumber}\n";
     echo "     - Title:       {$config->descriptive}\n";
-    echo "     - Quiz Weight: {$config->quizweight}%\n";
-    echo "     - Exam Weight: {$config->examweight}%\n";
 } else {
     echo "   ❌ Configuration record NOT found!\n";
 }

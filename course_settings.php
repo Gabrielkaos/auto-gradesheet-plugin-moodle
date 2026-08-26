@@ -66,8 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $DB->update_record('local_gradesheet_config', $existing);
         } else {
             $record = (object) array_merge([
-                'courseid' => $courseid, 'quizweight' => 50,
-                'examweight' => 50, 'activityweight' => 0,
+                'courseid' => $courseid,
                 'timecreated' => time(), 'timemodified' => time(),
             ], $details);
             $DB->insert_record('local_gradesheet_config', $record);
