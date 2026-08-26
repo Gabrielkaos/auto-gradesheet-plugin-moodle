@@ -10,7 +10,7 @@
 |-----------|-------|
 | System type | Moodle **local plugin** (`local_gradesheet`) |
 | Host platform | Moodle 4.5+ (`requires = 2024100700`) |
-| Current release | v1.5 (`version = 2026081900`, `MATURITY_STABLE`) |
+| Current release | v1.5 (`version = 2026082600`, `MATURITY_STABLE`) |
 | Language | PHP (Moodle coding standard), HTML/CSS, JS (inline) |
 | Primary output | ESSU "Report of Grades" — on-screen preview, PDF, Excel |
 | Target institution | Eastern Samar State University (ESSU) |
@@ -240,6 +240,7 @@ Defined in `db/install.xml`; evolution tracked in `db/upgrade.php`.
 | 2026031300 | Add `transmute` (custom scale) table |
 | 2026081800 | Add `status` (override) table |
 | 2026081900 | Add `ispassing` flag to `transmute` |
+| 2026082600 | Drop legacy weights from config and obsolete status fields |
 
 ---
 
