@@ -529,6 +529,43 @@ class helper {
     }
 
     /**
+     * Analyzes the custom scale for common mistakes like overlaps, gaps, and missing bottom brackets.
+     * Returns an array of warning strings.
+     */
+    public static function validate_custom_scale(int $courseid): array {
+        $custom = self::get_custom_transmute_rows($courseid);
+        if (empty($custom)) {
+            return [];
+        }
+
+        $warnings = [];
+        $custom_values = array_values($custom);
+        
+        // Check for missing bottom bracket
+        $lowest_bracket = end($custom_values);
+        if ($lowest_bracket && $lowest_bracket->minscore > 0) {
+            $warnings[] = "The lowest bracket starts at <strong>{$lowest_bracket->minscore}</strong>. Students scoring below {$lowest_bracket->minscore} will not receive a proper equivalent grade. Consider adding a bracket starting at 0.";
+        }
+
+        // Check for overlaps and gaps
+        for ($i = 0; $i < count($custom_values) - 1; $i++) {
+            $upper = $custom_values[$i];
+            $lower = $custom_values[$i+1];
+            
+            if ($upper->minscore < $lower->maxscore) {
+                $warnings[] = "Overlap detected: bracket '{$lower->equivalent}' ends at <strong>{$lower->maxscore}</strong>, but bracket '{$upper->equivalent}' starts at <strong>{$upper->minscore}</strong>. Scores in the overlapping region will be assigned to '{$upper->equivalent}'.";
+            } elseif ($upper->minscore == $lower->maxscore) {
+                $warnings[] = "Boundary overlap detected at score <strong>{$upper->minscore}</strong> between brackets '{$lower->equivalent}' and '{$upper->equivalent}'. Scores exactly at {$upper->minscore} will be assigned to '{$upper->equivalent}'.";
+            } elseif (($upper->minscore - $lower->maxscore) > 1.01) {
+                // If the gap is more than 1 (allowing for integer boundaries like 89 to 90)
+                $warnings[] = "Gap detected: bracket '{$lower->equivalent}' ends at <strong>{$lower->maxscore}</strong>, but the next bracket '{$upper->equivalent}' doesn't start until <strong>{$upper->minscore}</strong>. Scores in this gap will automatically fall into '{$lower->equivalent}'.";
+            }
+        }
+        
+        return $warnings;
+    }
+
+    /**
      * Returns the rating legend to display. Uses the course's custom scale if
      * one is defined, otherwise the default ESSU scale.
      *

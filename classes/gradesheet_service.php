@@ -58,8 +58,8 @@ class gradesheet_service {
             $rows[] = [
                 'idnumber'  => $student->idnumber,
                 'name'      => $student->lastname . ', ' . $student->firstname,
-                'midterm'   => helper::transmute_equiv($g['midterm'], $courseid),
-                'finals'    => helper::transmute_equiv($g['finals'], $courseid),
+                'midterm'   => $g['midterm'] === null ? '-' : number_format($g['midterm'], 2),
+                'finals'    => $g['finals'] === null ? '-' : number_format($g['finals'], 2),
                 'average'   => $g['transmuted'],
                 'remarks'   => $remarks,
                 'cattotals' => $g['cattotals'],

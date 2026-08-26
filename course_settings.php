@@ -231,6 +231,7 @@ $transmuterows  = $DB->get_records('local_gradesheet_transmute', ['courseid' => 
 $edittid        = optional_param('edittid', 0, PARAM_INT);
 $edittransmute  = $edittid ? $DB->get_record('local_gradesheet_transmute', ['id' => $edittid, 'courseid' => $courseid]) : null;
 $usingcustomscale = !empty($transmuterows);
+$scalewarnings  = \local_gradesheet\helper::validate_custom_scale($courseid);
 $displaylegend  = \local_gradesheet\helper::get_rating_legend($usingcustomscale ? $courseid : null);
 
 echo $OUTPUT->header();
@@ -558,6 +559,18 @@ echo $OUTPUT->header();
                         <button type="submit" class="btn btn-outline-danger btn-sm">Reset to Default Scale</button>
                     </form>
                 </div>
+                
+                <?php if (!empty($scalewarnings)): ?>
+                    <div class="alert alert-warning">
+                        <strong><span style="font-size:18px;">&#9888;</span> Scale Configuration Warnings:</strong>
+                        <ul class="mb-0 mt-2">
+                            <?php foreach ($scalewarnings as $warn): ?>
+                                <li><?php echo $warn; ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
             <?php else: ?>
                 <div class="alert alert-secondary">
                     Currently using the <strong>default ESSU</strong> scale (no custom brackets defined).

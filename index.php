@@ -353,8 +353,8 @@ if ($courseid) {
                     }
                 }
 
-                echo '<td>' . helper::transmute_equiv($g['midterm'], $courseid) . '</td>';
-                echo '<td>' . helper::transmute_equiv($g['finals'], $courseid) . '</td>';
+                echo '<td>' . ($g['midterm'] === null ? '-' : number_format($g['midterm'], 2)) . '</td>';
+                echo '<td>' . ($g['finals'] === null ? '-' : number_format($g['finals'], 2)) . '</td>';
                 echo '<td>' . $g['transmuted'] . '</td>';
                 echo '<td><span class="badge ' . $badgeclass . '">' . ($hasdata ? $g['remarks'] : '-') . '</span></td>';
             }
