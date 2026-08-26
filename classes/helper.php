@@ -146,16 +146,17 @@ class helper {
     }
 
     /**
-     * Transmutes a raw percentage score (0-100) into an equivalent grade.
+     * Transmutes a raw percentage score (0-100) into its displayed value.
      *
-     * If the course has custom transmutation brackets defined, those are used
-     * (a straight bracket match on the stored 'equivalent' string — no
-     * interpolation, since custom equivalents aren't guaranteed to be numeric,
-     * e.g. letter grades). Otherwise falls back to the default ESSU scale.
+     * If the course has custom transmutation brackets defined, the raw score
+     * itself is returned (formatted to 2 decimals); the matched bracket only
+     * decides passing/failing via its 'ispassing' flag (see is_passing()).
+     * A score covered by no bracket returns '-'. Without a custom scale, the
+     * default ESSU scale applies ('1.0'-'5.0', with scores below 55 as '5.0').
      *
      * @param float|int|null|string $grade Raw score, or null/'' for "no grade".
      * @param int|null $courseid Course to check for a custom scale. Null = always default.
-     * @return string Equivalent (e.g. '1.0'), '5.0' for failing, or '-' if no grade/no match.
+     * @return string Display value: raw score under a custom scale, ESSU equivalent otherwise, or '-' for no grade/no match.
      */
     public static function transmute_equiv($grade, ?int $courseid = null): string {
         if ($grade === null || $grade === '' || !is_numeric($grade)) {
@@ -540,6 +541,7 @@ class helper {
 
         $warnings = [];
         $custom_values = array_values($custom);
+        $labels = array_map([self::class, 'bracket_label'], $custom_values);
         
         // Check for missing bottom bracket
         $lowest_bracket = end($custom_values);
@@ -553,12 +555,12 @@ class helper {
             $lower = $custom_values[$i+1];
             
             if ($upper->minscore < $lower->maxscore) {
-                $warnings[] = "Overlap detected: bracket '{$lower->equivalent}' ends at <strong>{$lower->maxscore}</strong>, but bracket '{$upper->equivalent}' starts at <strong>{$upper->minscore}</strong>. Scores in the overlapping region will be assigned to '{$upper->equivalent}'.";
+                $warnings[] = "Overlap detected: bracket '{$labels[$i+1]}' ends at <strong>{$lower->maxscore}</strong>, but bracket '{$labels[$i]}' starts at <strong>{$upper->minscore}</strong>. Scores in the overlapping region will be assigned to '{$labels[$i]}'.";
             } elseif ($upper->minscore == $lower->maxscore) {
-                $warnings[] = "Boundary overlap detected at score <strong>{$upper->minscore}</strong> between brackets '{$lower->equivalent}' and '{$upper->equivalent}'. Scores exactly at {$upper->minscore} will be assigned to '{$upper->equivalent}'.";
+                $warnings[] = "Boundary overlap detected at score <strong>{$upper->minscore}</strong> between brackets '{$labels[$i+1]}' and '{$labels[$i]}'. Scores exactly at {$upper->minscore} will be assigned to '{$labels[$i]}'.";
             } elseif (($upper->minscore - $lower->maxscore) > 1.01) {
                 // If the gap is more than 1 (allowing for integer boundaries like 89 to 90)
-                $warnings[] = "Gap detected: bracket '{$lower->equivalent}' ends at <strong>{$lower->maxscore}</strong>, but the next bracket '{$upper->equivalent}' doesn't start until <strong>{$upper->minscore}</strong>. Scores in this gap will automatically fall into '{$lower->equivalent}'.";
+                $warnings[] = "Gap detected: bracket '{$labels[$i+1]}' ends at <strong>{$lower->maxscore}</strong>, but the next bracket '{$labels[$i]}' doesn't start until <strong>{$upper->minscore}</strong>. Scores in this gap will automatically fall into '{$labels[$i+1]}'.";
             }
         }
         
@@ -605,5 +607,12 @@ class helper {
     private static function format_score($score): string {
         $f = floatval($score);
         return (floor($f) == $f) ? (string)intval($f) : rtrim(rtrim(number_format($f, 2), '0'), '.');
+    }
+
+    /** Label for a scale bracket: its descriptor, or its min-max range when no descriptor is set. */
+    private static function bracket_label(\stdClass $row): string {
+        $desc = trim((string)$row->descriptor);
+        return $desc !== '' ? s($desc)
+            : self::format_score($row->minscore) . '-' . self::format_score($row->maxscore);
     }
 }

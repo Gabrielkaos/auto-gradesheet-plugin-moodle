@@ -28,6 +28,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_sesskey();
     $action = optional_param('action', '', PARAM_TEXT);
 
+    $settingsurl = new moodle_url('/local/gradesheet/course_settings.php', ['courseid' => $courseid]);
+    $catsurl     = new moodle_url('/local/gradesheet/course_settings.php', ['courseid' => $courseid], 'grade-categories');
+    $mapurl      = new moodle_url('/local/gradesheet/course_settings.php', ['courseid' => $courseid], 'grade-mapping');
+    $scaleurl    = new moodle_url('/local/gradesheet/course_settings.php', ['courseid' => $courseid], 'grading-scale');
+
+    $duplicate_category_name = function(string $name, int $excludeid = 0) use ($DB, $courseid): bool {
+        $records = $DB->get_records('local_gradesheet_categories', ['courseid' => $courseid]);
+        $needle  = mb_strtolower(trim($name));
+        foreach ($records as $rec) {
+            if ((int)$rec->id !== $excludeid && mb_strtolower(trim($rec->name)) === $needle) {
+                return true;
+            }
+        }
+        return false;
+    };
+
     // Save course details
     if ($action === 'savedetails') {
         $existing = $DB->get_record('local_gradesheet_config', ['courseid' => $courseid]);
@@ -56,23 +72,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ], $details);
             $DB->insert_record('local_gradesheet_config', $record);
         }
-        $detailsuccess = "Course details saved!";
+        redirect($settingsurl, 'Course details saved!', null,
+            \core\output\notification::NOTIFY_SUCCESS);
     }
 
     // Add a new category
     if ($action === 'addcategory') {
         $name   = required_param('catname',   PARAM_TEXT);
         $weight = required_param('catweight', PARAM_FLOAT);
-        if (!empty($name) && $weight >= 0) {
-            $sortorder = $DB->count_records('local_gradesheet_categories', ['courseid' => $courseid]);
-            $DB->insert_record('local_gradesheet_categories', (object)[
-                'courseid'  => $courseid,
-                'name'      => $name,
-                'weight'    => $weight,
-                'sortorder' => $sortorder,
-            ]);
-            $catsuccess = "Category '{$name}' added!";
+        if (empty($name) || $weight < 0) {
+            redirect($catsurl, 'Category name is required and the weight cannot be negative.', null,
+                \core\output\notification::NOTIFY_ERROR);
         }
+        if ($duplicate_category_name($name)) {
+            redirect($catsurl, 'A category named "' . s(trim($name)) . '" already exists.', null,
+                \core\output\notification::NOTIFY_WARNING);
+        }
+        $sortorder = $DB->count_records('local_gradesheet_categories', ['courseid' => $courseid]);
+        $DB->insert_record('local_gradesheet_categories', (object)[
+            'courseid'  => $courseid,
+            'name'      => $name,
+            'weight'    => $weight,
+            'sortorder' => $sortorder,
+        ]);
+        redirect($catsurl, "Category '" . s(trim($name)) . "' added!", null,
+            \core\output\notification::NOTIFY_SUCCESS);
     }
 
     // Update an existing category
@@ -82,17 +106,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $weight = required_param('catweight', PARAM_FLOAT);
 
         $category = $DB->get_record('local_gradesheet_categories', ['id' => $catid, 'courseid' => $courseid]);
-        if ($category && !empty($name) && $weight >= 0) {
-            $category->name = $name;
-            $category->weight = $weight;
-            $DB->update_record('local_gradesheet_categories', $category);
-            redirect(
-                new moodle_url('/local/gradesheet/course_settings.php', ['courseid' => $courseid], 'grade-categories'),
-                "Category '{$name}' updated!",
-                null,
-                \core\output\notification::NOTIFY_SUCCESS
-            );
+        if (!$category || empty($name) || $weight < 0) {
+            redirect($catsurl, 'Category could not be updated. Provide a name and a non-negative weight.', null,
+                \core\output\notification::NOTIFY_ERROR);
         }
+        if ($duplicate_category_name($name, $catid)) {
+            redirect($catsurl, 'A category named "' . s(trim($name)) . '" already exists.', null,
+                \core\output\notification::NOTIFY_WARNING);
+        }
+        $category->name = $name;
+        $category->weight = $weight;
+        $DB->update_record('local_gradesheet_categories', $category);
+        redirect(
+            $catsurl,
+            "Category '" . s(trim($name)) . "' updated!",
+            null,
+            \core\output\notification::NOTIFY_SUCCESS
+        );
     }
 
     // Delete a category
@@ -112,7 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $DB->set_field('local_gradesheet_itemmap', 'categoryid', 0, [
             'courseid' => $courseid, 'categoryid' => $catid
         ]);
-        $catsuccess = "Category deleted.";
+        redirect($catsurl, 'Category deleted.', null,
+            \core\output\notification::NOTIFY_SUCCESS);
     }
 
     // Add a new transmutation bracket
@@ -121,21 +152,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $max   = required_param('tmax', PARAM_FLOAT);
         $desc  = required_param('tdesc', PARAM_TEXT);
         $ispassing = optional_param('tispassing', 0, PARAM_INT) ? 1 : 0;
-        if ($max >= $min) {
-            $sortorder = $DB->count_records('local_gradesheet_transmute', ['courseid' => $courseid]);
-            $DB->insert_record('local_gradesheet_transmute', (object)[
-                'courseid'   => $courseid,
-                'minscore'   => $min,
-                'maxscore'   => $max,
-                'equivalent' => '',
-                'descriptor' => $desc,
-                'sortorder'  => $sortorder,
-                'ispassing'  => $ispassing,
-            ]);
-            $scalesuccess = "Bracket added!";
-        } else {
-            $scaleerror = "Max score must be greater than or equal to min score.";
+        if ($max < $min) {
+            redirect($scaleurl, 'Max score must be greater than or equal to min score.', null,
+                \core\output\notification::NOTIFY_ERROR);
         }
+        $sortorder = $DB->count_records('local_gradesheet_transmute', ['courseid' => $courseid]);
+        $DB->insert_record('local_gradesheet_transmute', (object)[
+            'courseid'   => $courseid,
+            'minscore'   => $min,
+            'maxscore'   => $max,
+            'equivalent' => '',
+            'descriptor' => $desc,
+            'sortorder'  => $sortorder,
+            'ispassing'  => $ispassing,
+        ]);
+        redirect($scaleurl, 'Bracket added!', null, \core\output\notification::NOTIFY_SUCCESS);
     }
 
     // Update an existing transmutation bracket
@@ -148,36 +179,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $row = $DB->get_record('local_gradesheet_transmute', ['id' => $tid, 'courseid' => $courseid]);
         if (!$row) {
-            $scaleerror = "That bracket no longer exists.";
-        } else if ($max < $min) {
-            $scaleerror = "Max score must be greater than or equal to min score.";
-        } else {
-            $row->minscore   = $min;
-            $row->maxscore   = $max;
-            $row->equivalent = '';
-            $row->descriptor = $desc;
-            $row->ispassing  = $ispassing;
-            $DB->update_record('local_gradesheet_transmute', $row);
-            redirect(
-                new moodle_url('/local/gradesheet/course_settings.php', ['courseid' => $courseid], 'grading-scale'),
-                "Bracket updated!",
-                null,
-                \core\output\notification::NOTIFY_SUCCESS
-            );
+            redirect($scaleurl, 'That bracket no longer exists.', null,
+                \core\output\notification::NOTIFY_ERROR);
         }
+        if ($max < $min) {
+            redirect($scaleurl, 'Max score must be greater than or equal to min score.', null,
+                \core\output\notification::NOTIFY_ERROR);
+        }
+        $row->minscore   = $min;
+        $row->maxscore   = $max;
+        $row->equivalent = '';
+        $row->descriptor = $desc;
+        $row->ispassing  = $ispassing;
+        $DB->update_record('local_gradesheet_transmute', $row);
+        redirect($scaleurl, 'Bracket updated!', null, \core\output\notification::NOTIFY_SUCCESS);
     }
 
     // Delete a transmutation bracket
     if ($action === 'deletetransmute') {
         $tid = required_param('tid', PARAM_INT);
         $DB->delete_records('local_gradesheet_transmute', ['id' => $tid, 'courseid' => $courseid]);
-        $scalesuccess = "Bracket deleted.";
+        redirect($scaleurl, 'Bracket deleted.', null, \core\output\notification::NOTIFY_SUCCESS);
     }
 
     // Reset to the default ESSU scale (deletes all custom brackets for this course)
     if ($action === 'resetscale') {
         $DB->delete_records('local_gradesheet_transmute', ['courseid' => $courseid]);
-        $scalesuccess = "Reverted to the default grading scale.";
+        redirect($scaleurl, 'Reverted to the default grading scale.', null,
+            \core\output\notification::NOTIFY_SUCCESS);
     }
 
     // Save grade item mapping
@@ -203,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
             }
         }
-        $mapsuccess = "Grade item mapping saved!";
+        redirect($mapurl, 'Grade item mapping saved!', null, \core\output\notification::NOTIFY_SUCCESS);
     }
 }
 
@@ -245,9 +274,6 @@ echo $OUTPUT->header();
             <strong>Course Details & Signatories</strong>
         </div>
         <div class="card-body">
-            <?php if (!empty($detailsuccess)): ?>
-                <div class="alert alert-success"><?php echo $detailsuccess; ?></div>
-            <?php endif; ?>
             <form method="post">
                 <input type="hidden" name="action" value="savedetails">
                 <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
@@ -327,10 +353,6 @@ echo $OUTPUT->header();
             <strong>Grade Categories & Weights</strong>
         </div>
         <div class="card-body">
-            <?php if (!empty($catsuccess)): ?>
-                <div class="alert alert-success"><?php echo $catsuccess; ?></div>
-            <?php endif; ?>
-
             <?php if (!$weightvalid['valid']): ?>
             <div class="alert alert-danger d-flex align-items-center" role="alert" style="font-size:16px; padding:15px 20px;">
                 <span style="font-size:28px; margin-right:12px;">&#9888;</span>
@@ -445,15 +467,11 @@ echo $OUTPUT->header();
     </div>
 
     <!-- SECTION 3: Grade Item Mapping -->
-    <div class="card mb-4">
+    <div class="card mb-4" id="grade-mapping">
         <div class="card-header bg-dark text-white">
             <strong>Grade Item Mapping</strong>
         </div>
         <div class="card-body">
-            <?php if (!empty($mapsuccess)): ?>
-                <div class="alert alert-success"><?php echo $mapsuccess; ?></div>
-            <?php endif; ?>
-
             <?php
             $mapwarn = helper::get_mapping_warnings($courseid);
             if ($mapwarn !== null && !empty($categories)
@@ -533,13 +551,6 @@ echo $OUTPUT->header();
             <strong>Grading Scale / Transmutation</strong>
         </div>
         <div class="card-body">
-            <?php if (!empty($scalesuccess)): ?>
-                <div class="alert alert-success"><?php echo $scalesuccess; ?></div>
-            <?php endif; ?>
-            <?php if (!empty($scaleerror)): ?>
-                <div class="alert alert-danger"><?php echo $scaleerror; ?></div>
-            <?php endif; ?>
-
             <p class="text-muted">
                 By default this course uses ESSU's standard transmutation table. Add brackets below to define
                 your own scale instead — for example, if the college uses a different equivalent-rating system.
