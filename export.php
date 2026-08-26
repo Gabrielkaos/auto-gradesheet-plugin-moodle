@@ -137,18 +137,23 @@ foreach ($pages as $pageindex => $pagerows) {
     $pdf->SetX(15); $pdf->Cell(40, 5, 'Number of Units :', 0, 0);
     $pdf->Cell(0, 5, $units, 0, 1);
 
-    $legendX = 120;
+    $is_custom = helper::get_custom_transmute_rows($courseid) ? true : false;
+    $legendX = $is_custom ? 145 : 120;
     $pdf->SetXY($legendX, $infoY);
     $pdf->SetFont('helvetica', 'B', 7);
     $pdf->Cell(25, 4, 'Actual Rating',     1, 0, 'C');
-    $pdf->Cell(25, 4, 'Equivalent Rating', 1, 0, 'C');
+    if (!$is_custom) {
+        $pdf->Cell(25, 4, 'Equivalent Rating', 1, 0, 'C');
+    }
     $pdf->Cell(30, 4, 'Adjectival Rating', 1, 1, 'C');
 
     $pdf->SetFont('helvetica', '', 7);
     foreach ($pdf->report['legend'] as $lrow) {
         $pdf->SetX($legendX);
         $pdf->Cell(25, 3, $lrow[0], 1, 0, 'C');
-        $pdf->Cell(25, 3, $lrow[1], 1, 0, 'C');
+        if (!$is_custom) {
+            $pdf->Cell(25, 3, $lrow[1], 1, 0, 'C');
+        }
         $pdf->Cell(30, 3, $lrow[2], 1, 1, 'L');
     }
 

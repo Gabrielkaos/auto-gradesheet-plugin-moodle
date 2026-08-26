@@ -115,7 +115,10 @@ foreach ($infoData as $r => [$label, $val]) {
     $sheet->getStyle('B' . $r)->getFont()->setBold(true);
 }
 
-$legend = [['Actual Rating', 'Equivalent Rating', 'Adjectival Rating']];
+$is_custom = helper::get_custom_transmute_rows($courseid) ? true : false;
+$legend = $is_custom 
+    ? [['Actual Rating', 'Adjectival Rating']] 
+    : [['Actual Rating', 'Equivalent Rating', 'Adjectival Rating']];
 $legend = array_merge($legend, helper::get_rating_legend($courseid));
 
 $legendStartRow = 6;
@@ -123,17 +126,30 @@ foreach ($legend as $li => $lrow) {
     $r        = $legendStartRow + $li;
     $isHeader = ($li === 0);
     $sheet->setCellValueExplicit('E' . $r, $lrow[0], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-    $sheet->setCellValueExplicit('F' . $r, $lrow[1], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-    $sheet->setCellValueExplicit('G' . $r, $lrow[2], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-    $sheet->getStyle("E{$r}:G{$r}")->applyFromArray([
-        'font'      => ['bold' => $isHeader, 'size' => 8],
-        'fill'      => $isHeader
-            ? ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'DDDDDD']]
-            : ['fillType' => Fill::FILL_NONE],
-        'borders'   => $allBorderThin['borders'],
-        'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
-    ]);
-    $sheet->getStyle('G' . $r)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+    if ($is_custom) {
+        $sheet->setCellValueExplicit('F' . $r, $lrow[2], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->getStyle("E{$r}:F{$r}")->applyFromArray([
+            'font'      => ['bold' => $isHeader, 'size' => 8],
+            'fill'      => $isHeader
+                ? ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'DDDDDD']]
+                : ['fillType' => Fill::FILL_NONE],
+            'borders'   => $allBorderThin['borders'],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ]);
+        $sheet->getStyle('F' . $r)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+    } else {
+        $sheet->setCellValueExplicit('F' . $r, $lrow[1], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValueExplicit('G' . $r, $lrow[2], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->getStyle("E{$r}:G{$r}")->applyFromArray([
+            'font'      => ['bold' => $isHeader, 'size' => 8],
+            'fill'      => $isHeader
+                ? ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'DDDDDD']]
+                : ['fillType' => Fill::FILL_NONE],
+            'borders'   => $allBorderThin['borders'],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ]);
+        $sheet->getStyle('G' . $r)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+    }
 }
 
 $tableHeaderRow = 19;

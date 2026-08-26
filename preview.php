@@ -193,13 +193,24 @@ foreach ($pages as $pageindex => $pagerows):
             </table>
         </div>
         <div class="gs-legend">
+            <?php
+                $is_custom = helper::get_custom_transmute_rows($courseid) ? true : false;
+            ?>
             <table>
                 <thead>
-                    <tr><th>Actual<br>Rating</th><th>Equivalent<br>Rating</th><th>Adjectival<br>Rating</th></tr>
+                    <tr>
+                        <th>Actual<br>Rating</th>
+                        <?php if (!$is_custom): ?><th>Equivalent<br>Rating</th><?php endif; ?>
+                        <th>Adjectival<br>Rating</th>
+                    </tr>
                 </thead>
                 <tbody>
                     <?php foreach (helper::get_rating_legend($courseid) as $lrow): ?>
-                    <tr><td><?php echo s($lrow[0]); ?></td><td><?php echo s($lrow[1]); ?></td><td><?php echo s($lrow[2]); ?></td></tr>
+                    <tr>
+                        <td><?php echo s($lrow[0]); ?></td>
+                        <?php if (!$is_custom): ?><td><?php echo s($lrow[1]); ?></td><?php endif; ?>
+                        <td><?php echo s($lrow[2]); ?></td>
+                    </tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>

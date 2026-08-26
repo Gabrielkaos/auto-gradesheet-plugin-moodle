@@ -181,10 +181,13 @@ if ($courseid) {
                     <span class="grade-label">Final Average</span>
                     <span class="grade-value">' . ($grades['average'] === null ? '—' : number_format($grades['average'], 2)) . '</span>
                   </div>';
-            echo '<div class="grade-row" style="background:#f8f9fa">
-                    <span class="grade-label">Transmuted Grade</span>
-                    <span class="grade-value" style="font-size:18px">' . s($grades['transmuted']) . '</span>
-                  </div>';
+            $is_custom = helper::get_custom_transmute_rows($courseid) ? true : false;
+            if (!$is_custom) {
+                echo '<div class="grade-row" style="background:#f8f9fa">
+                        <span class="grade-label">Transmuted Grade</span>
+                        <span class="grade-value" style="font-size:18px">' . s($grades['transmuted']) . '</span>
+                      </div>';
+            }
         }
 
         echo '</div></div>';
@@ -353,8 +356,8 @@ if ($courseid) {
                     }
                 }
 
-                echo '<td>' . ($g['midterm'] === null ? '-' : number_format($g['midterm'], 2)) . '</td>';
-                echo '<td>' . ($g['finals'] === null ? '-' : number_format($g['finals'], 2)) . '</td>';
+                echo '<td>' . helper::transmute_equiv($g['midterm'], $courseid) . '</td>';
+                echo '<td>' . helper::transmute_equiv($g['finals'], $courseid) . '</td>';
                 echo '<td>' . $g['transmuted'] . '</td>';
                 echo '<td><span class="badge ' . $badgeclass . '">' . ($hasdata ? $g['remarks'] : '-') . '</span></td>';
             }

@@ -169,7 +169,7 @@ class helper {
             if (!empty($custom)) {
                 foreach ($custom as $row) {
                     if ($grade >= $row->minscore) {
-                        return $row->equivalent;
+                        return number_format($grade, 2);
                     }
                 }
                 // Custom scale is active but no bracket covers this score.
@@ -212,7 +212,7 @@ class helper {
      */
     private static array $transmutecache = [];
 
-    private static function get_custom_transmute_rows(int $courseid): array {
+    public static function get_custom_transmute_rows(int $courseid): array {
         global $DB;
         if (!isset(self::$transmutecache[$courseid])) {
             self::$transmutecache[$courseid] = $DB->get_records(

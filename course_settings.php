@@ -119,16 +119,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'addtransmute') {
         $min   = required_param('tmin', PARAM_FLOAT);
         $max   = required_param('tmax', PARAM_FLOAT);
-        $equiv = required_param('tequiv', PARAM_TEXT);
         $desc  = required_param('tdesc', PARAM_TEXT);
         $ispassing = optional_param('tispassing', 0, PARAM_INT) ? 1 : 0;
-        if ($max >= $min && $equiv !== '') {
+        if ($max >= $min) {
             $sortorder = $DB->count_records('local_gradesheet_transmute', ['courseid' => $courseid]);
             $DB->insert_record('local_gradesheet_transmute', (object)[
                 'courseid'   => $courseid,
                 'minscore'   => $min,
                 'maxscore'   => $max,
-                'equivalent' => $equiv,
+                'equivalent' => '',
                 'descriptor' => $desc,
                 'sortorder'  => $sortorder,
                 'ispassing'  => $ispassing,
@@ -144,7 +143,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tid   = required_param('tid', PARAM_INT);
         $min   = required_param('tmin', PARAM_FLOAT);
         $max   = required_param('tmax', PARAM_FLOAT);
-        $equiv = required_param('tequiv', PARAM_TEXT);
         $desc  = required_param('tdesc', PARAM_TEXT);
         $ispassing = optional_param('tispassing', 0, PARAM_INT) ? 1 : 0;
 
@@ -153,12 +151,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $scaleerror = "That bracket no longer exists.";
         } else if ($max < $min) {
             $scaleerror = "Max score must be greater than or equal to min score.";
-        } else if ($equiv === '') {
-            $scaleerror = "Equivalent cannot be empty.";
         } else {
             $row->minscore   = $min;
             $row->maxscore   = $max;
-            $row->equivalent = $equiv;
+            $row->equivalent = '';
             $row->descriptor = $desc;
             $row->ispassing  = $ispassing;
             $DB->update_record('local_gradesheet_transmute', $row);
@@ -582,7 +578,6 @@ echo $OUTPUT->header();
                     <tr>
                         <th>Min Score</th>
                         <th>Max Score</th>
-                        <th>Equivalent</th>
                         <th>Descriptor</th>
                         <?php if ($usingcustomscale): ?><th>Passing?</th><?php endif; ?>
                         <?php if ($usingcustomscale): ?><th>Action</th><?php endif; ?>
@@ -602,7 +597,6 @@ echo $OUTPUT->header();
                                 </form>
                             </td>
                             <td><input type="number" step="0.01" name="tmax" class="form-control form-control-sm" form="edittransmuteform<?php echo $row->id; ?>" value="<?php echo s($row->maxscore); ?>"></td>
-                            <td><input type="text" name="tequiv" class="form-control form-control-sm" form="edittransmuteform<?php echo $row->id; ?>" value="<?php echo s($row->equivalent); ?>"></td>
                             <td><input type="text" name="tdesc" class="form-control form-control-sm" form="edittransmuteform<?php echo $row->id; ?>" value="<?php echo s($row->descriptor); ?>"></td>
                             <td>
                                 <div class="form-check">
@@ -620,7 +614,6 @@ echo $OUTPUT->header();
                         <tr>
                             <td><?php echo s($row->minscore); ?></td>
                             <td><?php echo s($row->maxscore); ?></td>
-                            <td><strong><?php echo s($row->equivalent); ?></strong></td>
                             <td><?php echo s($row->descriptor); ?></td>
                             <td><?php echo $row->ispassing ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'; ?></td>
                             <td>
@@ -641,8 +634,7 @@ echo $OUTPUT->header();
                         <?php foreach ($displaylegend as $lrow): ?>
                         <tr class="text-muted">
                             <td colspan="2"><?php echo s($lrow[0]); ?></td>
-                            <td><?php echo s($lrow[1]); ?></td>
-                            <td><?php echo s($lrow[2]); ?></td>
+                            <td colspan="3"><?php echo s($lrow[2]); ?></td>
                         </tr>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -656,17 +648,13 @@ echo $OUTPUT->header();
                 <h6><strong>+ Add Bracket</strong></h6>
                 <p class="text-muted small">Adding your first bracket switches this course to a custom scale.</p>
                 <div class="form-row align-items-end">
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <label><strong>Min Score</strong></label>
                         <input type="number" step="0.01" name="tmin" class="form-control" placeholder="e.g. 90" required>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <label><strong>Max Score</strong></label>
                         <input type="number" step="0.01" name="tmax" class="form-control" placeholder="e.g. 100" required>
-                    </div>
-                    <div class="col-md-2">
-                        <label><strong>Equivalent</strong></label>
-                        <input type="text" name="tequiv" class="form-control" placeholder="e.g. A" required>
                     </div>
                     <div class="col-md-4">
                         <label><strong>Descriptor</strong></label>
