@@ -11,11 +11,20 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use local_gradesheet\helper;
 use local_gradesheet\gradesheet_service;
 
-require_login();
-
 $courseid = required_param('courseid', PARAM_INT);
+$course   = get_course($courseid);
+require_login($course);
 $context  = context_course::instance($courseid);
 require_capability('local/gradesheet:manage', $context);
+
+if (!class_exists(\PhpOffice\PhpSpreadsheet\Spreadsheet::class)) {
+    redirect(
+        new moodle_url('/local/gradesheet/index.php', ['courseid' => $courseid]),
+        'Excel export requires PhpSpreadsheet which is not available on this Moodle installation.',
+        null,
+        \core\output\notification::NOTIFY_ERROR
+    );
+}
 
 $weightvalid = helper::validate_weight_sum($courseid);
 if (!$weightvalid['valid']) {
@@ -28,9 +37,20 @@ if (!$weightvalid['valid']) {
 }
 
 $data = gradesheet_service::compute_all_grades($courseid);
-extract($data);
 
-$rows = $data['rows'];
+$coursename    = $data['coursename'];
+$semester      = $data['semester'];
+$schoolyear    = $data['schoolyear'];
+$coursenumber  = $data['coursenumber'];
+$descriptive   = $data['descriptive'];
+$courseandyear = $data['courseandyear'];
+$schedule      = $data['schedule'];
+$units         = $data['units'];
+$instructor    = $data['instructor'];
+$depthead      = $data['depthead'];
+$registrar     = $data['registrar'];
+$collegedean   = $data['collegedean'];
+$rows          = $data['rows'];
 
 $colNO      = 'A';
 $colNAME    = 'B';
@@ -249,7 +269,7 @@ $sheet->setCellValue('A' . ($footerRow + 1), 'Effectivity Date: March 15, 2024')
 $sheet->getStyle('A' . $footerRow)->getFont()->setSize(7);
 $sheet->getStyle('A' . ($footerRow + 1))->getFont()->setSize(7);
 $sheet->mergeCells('E' . $footerRow . ':' . $lastCol . $footerRow);
-$sheet->setCellValue('E' . $footerRow, 'Page 1 of 1');
+$sheet->setCellValue('E' . $footerRow, '');
 $sheet->getStyle('E' . $footerRow)->applyFromArray([
     'font'      => ['size' => 7],
     'alignment' => ['horizontal' => Alignment::HORIZONTAL_RIGHT],

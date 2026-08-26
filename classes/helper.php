@@ -469,7 +469,7 @@ class helper {
             $sumavg = 0.0;
             $n      = 0;
             foreach ($cats as $catid => $data) {
-                $catAvg = $data['total'] / $data['count'];
+                $catAvg = $data['count'] > 0 ? $data['total'] / $data['count'] : 0;
                 $weight = floatval($cattotals[$catid]['weight']);
                 $sumw   += $weight;
                 $sumwa  += $catAvg * $weight;

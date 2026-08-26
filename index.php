@@ -24,7 +24,9 @@ $courseid = optional_param('courseid', 0, PARAM_INT);
 $context = null;
 
 if ($courseid > 0) {
-    $context = context_course::instance($courseid, MUST_EXIST);
+    $course_obj = get_course($courseid);
+    require_login($course_obj);
+    $context = context_course::instance($courseid);
     helper::ensure_course_defaults($courseid);
 }
 
@@ -88,10 +90,10 @@ if ($admin_too_many && !$courseid) {
 }
 
 if ($courseid) {
-    $cfg     = helper::load_course_config($courseid);
+    $cfg        = helper::load_course_config($courseid);
+    $coursename = $cfg['coursename'];
 
     $context = context_course::instance($courseid);
-    extract($cfg);
 
     $categories = $DB->get_records('local_gradesheet_categories',
         ['courseid' => $courseid], 'sortorder ASC');

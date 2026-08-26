@@ -5,12 +5,12 @@ require_once($CFG->libdir.'/gradelib.php');
 require_once($CFG->libdir.'/grade/grade_item.php');
 require_once($CFG->libdir.'/pdflib.php');
 
-require_login();
-
 use local_gradesheet\helper;
 use local_gradesheet\gradesheet_service;
 
 $courseid = required_param('courseid', PARAM_INT);
+$course   = get_course($courseid);
+require_login($course);
 $context  = context_course::instance($courseid);
 require_capability('local/gradesheet:manage', $context);
 
@@ -25,9 +25,20 @@ if (!$weightvalid['valid']) {
 }
 
 $data = gradesheet_service::compute_all_grades($courseid);
-extract($data);
 
-$rows = $data['rows'];
+$coursename    = $data['coursename'];
+$semester      = $data['semester'];
+$schoolyear    = $data['schoolyear'];
+$coursenumber  = $data['coursenumber'];
+$descriptive   = $data['descriptive'];
+$courseandyear = $data['courseandyear'];
+$schedule      = $data['schedule'];
+$units         = $data['units'];
+$instructor    = $data['instructor'];
+$depthead      = $data['depthead'];
+$registrar     = $data['registrar'];
+$collegedean   = $data['collegedean'];
+$rows          = $data['rows'];
 
 class gradesheet_pdf extends pdf {
     public $report = [];

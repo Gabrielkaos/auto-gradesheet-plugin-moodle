@@ -4,9 +4,9 @@ require_once($CFG->libdir.'/formslib.php');
 
 use local_gradesheet\helper;
 
-require_login();
-
 $courseid = required_param('courseid', PARAM_INT);
+$course   = get_course($courseid);
+require_login($course);
 $context  = context_course::instance($courseid);
 require_capability('local/gradesheet:manage', $context);
 

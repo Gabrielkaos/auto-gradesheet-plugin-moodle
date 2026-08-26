@@ -3,12 +3,12 @@ require_once('../../config.php');
 require_once($CFG->libdir.'/gradelib.php');
 require_once($CFG->libdir.'/grade/grade_item.php');
 
-require_login();
-
 use local_gradesheet\helper;
 use local_gradesheet\gradesheet_service;
 
 $courseid = required_param('courseid', PARAM_INT);
+$course   = get_course($courseid);
+require_login($course);
 $context  = context_course::instance($courseid);
 require_capability('local/gradesheet:manage', $context);
 
@@ -18,9 +18,20 @@ $PAGE->set_title(get_string('pluginname', 'local_gradesheet'));
 $PAGE->set_heading(get_string('pluginname', 'local_gradesheet'));
 
 $data = gradesheet_service::compute_all_grades($courseid);
-extract($data);
 
-$rows = $data['rows'];
+$coursename    = $data['coursename'];
+$semester      = $data['semester'];
+$schoolyear    = $data['schoolyear'];
+$coursenumber  = $data['coursenumber'];
+$descriptive   = $data['descriptive'];
+$courseandyear = $data['courseandyear'];
+$schedule      = $data['schedule'];
+$units         = $data['units'];
+$instructor    = $data['instructor'];
+$depthead      = $data['depthead'];
+$registrar     = $data['registrar'];
+$collegedean   = $data['collegedean'];
+$rows          = $data['rows'];
 
 $weightvalid = helper::validate_weight_sum($courseid);
 if (!$weightvalid['valid']) {
@@ -165,7 +176,7 @@ foreach ($pages as $pageindex => $pagerows):
         <div style="text-align:center; align-self:center;">
             <div style="font-size:18px; font-weight:bold; letter-spacing:2px;">REPORT OF GRADES</div>
             <div style="font-size:11px; color:#333; margin-top:4px;">
-                <?php echo $semester; ?> &nbsp;&nbsp; SY <?php echo $schoolyear; ?>
+                <?php echo s($semester); ?> &nbsp;&nbsp; SY <?php echo s($schoolyear); ?>
             </div>
         </div>
         <img src="<?php echo $CFG->wwwroot; ?>/local/gradesheet/pix/bagong-pilipinas.png" style="width:80px; height:auto;">
@@ -188,7 +199,7 @@ foreach ($pages as $pageindex => $pagerows):
                 </thead>
                 <tbody>
                     <?php foreach (helper::get_rating_legend($courseid) as $lrow): ?>
-                    <tr><td><?php echo $lrow[0]; ?></td><td><?php echo $lrow[1]; ?></td><td><?php echo $lrow[2]; ?></td></tr>
+                    <tr><td><?php echo s($lrow[0]); ?></td><td><?php echo s($lrow[1]); ?></td><td><?php echo s($lrow[2]); ?></td></tr>
                     <?php endforeach; ?>
                 </tbody>
             </table>
@@ -214,10 +225,10 @@ foreach ($pages as $pageindex => $pagerows):
                 <td class="<?php echo $isfailed ? 'failed-cell' : ''; ?>"><?php echo $rownum++; ?></td>
                 <td class="name-col"><?php echo htmlspecialchars($row['name']); ?></td>
                 <td><?php echo htmlspecialchars($row['idnumber']); ?></td>
-                <td><?php echo $row['midterm']; ?></td>
-				<td><?php echo $row['finals']; ?></td>
-                <td><?php echo $row['average']; ?></td>
-                <td class="<?php echo $isfailed ? 'failed-cell' : ''; ?>"><?php echo $row['remarks']; ?></td>
+                <td><?php echo s($row['midterm']); ?></td>
+				<td><?php echo s($row['finals']); ?></td>
+                <td><?php echo s($row['average']); ?></td>
+                <td class="<?php echo $isfailed ? 'failed-cell' : ''; ?>"><?php echo s($row['remarks']); ?></td>
             </tr>
             <?php endforeach; ?>
             <?php if ($islastpage): ?>
