@@ -140,5 +140,9 @@ function xmldb_local_gradesheet_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026082600, 'local', 'gradesheet');
     }
 
+    if ($oldversion < 2026091600) {
+        upgrade_plugin_savepoint(true, 2026091600, 'local', 'gradesheet');
+    }
+
     return true;
 }

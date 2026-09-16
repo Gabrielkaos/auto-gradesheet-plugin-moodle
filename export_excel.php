@@ -12,6 +12,7 @@ use local_gradesheet\helper;
 use local_gradesheet\gradesheet_service;
 
 $courseid = required_param('courseid', PARAM_INT);
+$groupid  = optional_param('group', 0, PARAM_INT);
 $course   = get_course($courseid);
 require_login($course);
 $context  = context_course::instance($courseid);
@@ -36,7 +37,7 @@ if (!$weightvalid['valid']) {
     );
 }
 
-$data = gradesheet_service::compute_all_grades($courseid);
+$data = gradesheet_service::compute_all_grades($courseid, $groupid);
 
 $coursename    = $data['coursename'];
 $semester      = $data['semester'];
@@ -51,6 +52,15 @@ $depthead      = $data['depthead'];
 $registrar     = $data['registrar'];
 $collegedean   = $data['collegedean'];
 $rows          = $data['rows'];
+
+if (empty($rows)) {
+    redirect(
+        new moodle_url('/local/gradesheet/index.php', ['courseid' => $courseid]),
+        'Cannot export Excel: No students are enrolled in this course.',
+        null,
+        \core\output\notification::NOTIFY_WARNING
+    );
+}
 
 $colNO      = 'A';
 $colNAME    = 'B';
@@ -127,7 +137,7 @@ foreach ($legend as $li => $lrow) {
     $isHeader = ($li === 0);
     $sheet->setCellValueExplicit('E' . $r, $lrow[0], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
     if ($is_custom) {
-        $sheet->setCellValueExplicit('F' . $r, $lrow[2], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValueExplicit('F' . $r, $isHeader ? $lrow[1] : ($lrow[2] ?? ''), \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
         $sheet->getStyle("E{$r}:F{$r}")->applyFromArray([
             'font'      => ['bold' => $isHeader, 'size' => 8],
             'fill'      => $isHeader
@@ -308,7 +318,7 @@ $sheet->getPageSetup()->setFitToPage(true);
 $sheet->getPageSetup()->setFitToWidth(1);
 $sheet->getPageSetup()->setFitToHeight(0);
 
-$filename = 'ReportOfGrades_' . str_replace(' ', '_', $coursename) . '_' . date('Ymd') . '.xlsx';
+$filename = clean_filename('ReportOfGrades_' . str_replace(' ', '_', $coursename) . '_' . date('Ymd') . '.xlsx');
 
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 header('Content-Disposition: attachment; filename="' . $filename . '"');

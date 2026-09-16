@@ -7,17 +7,18 @@ use local_gradesheet\helper;
 use local_gradesheet\gradesheet_service;
 
 $courseid = required_param('courseid', PARAM_INT);
+$groupid  = optional_param('group', 0, PARAM_INT);
 $course   = get_course($courseid);
 require_login($course);
 $context  = context_course::instance($courseid);
 require_capability('local/gradesheet:manage', $context);
 
-$PAGE->set_url('/local/gradesheet/preview.php', ['courseid' => $courseid]);
+$PAGE->set_url('/local/gradesheet/preview.php', array_filter(['courseid' => $courseid, 'group' => $groupid]));
 $PAGE->set_context($context);
 $PAGE->set_title(get_string('pluginname', 'local_gradesheet'));
 $PAGE->set_heading(get_string('pluginname', 'local_gradesheet'));
 
-$data = gradesheet_service::compute_all_grades($courseid);
+$data = gradesheet_service::compute_all_grades($courseid, $groupid);
 
 $coursename    = $data['coursename'];
 $semester      = $data['semester'];
@@ -67,15 +68,15 @@ $PAGE->set_heading('Report of Grades Preview');
 // Tune these if rows overflow/underflow a printed page in your browser.
 $rowsperpage    = 20; // Max student rows per page (all pages now include signatures).
 
-$pages = array_chunk($rows, $rowsperpage);
+$pages = empty($rows) ? [[]] : array_chunk($rows, $rowsperpage);
 
 $totalpages = count($pages);
 
 echo $OUTPUT->header();
 echo '<div class="gradesheet-preview-page">';
+
+$groupparam = $groupid ? '&group=' . $groupid : '';
 ?>
-
-
 
 <div class="preview-toolbar">
     <div>
@@ -84,9 +85,9 @@ echo '<div class="gradesheet-preview-page">';
         <span class="text-muted ml-2">(<?php echo $totalpages; ?> page<?php echo $totalpages === 1 ? '' : 's'; ?>)</span>
     </div>
     <div>
-        <a href="index.php?courseid=<?php echo $courseid; ?>" class="btn btn-secondary btn-sm">← Back</a>
+        <a href="index.php?courseid=<?php echo $courseid . $groupparam; ?>" class="btn btn-secondary btn-sm">← Back</a>
         <button onclick="window.print()" class="btn btn-primary btn-sm ml-2">Print</button>
-        <a href="export.php?courseid=<?php echo $courseid; ?>" class="btn btn-success btn-sm ml-2">Download PDF</a>
+        <a href="export.php?courseid=<?php echo $courseid . $groupparam; ?>" class="btn btn-success btn-sm ml-2">Download PDF</a>
         <a href="course_settings.php?courseid=<?php echo $courseid; ?>" class="btn btn-secondary btn-sm ml-2">Settings</a>
     </div>
 </div>

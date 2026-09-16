@@ -163,7 +163,7 @@ class helper {
             $custom = self::get_custom_transmute_rows($courseid);
             if (!empty($custom)) {
                 foreach ($custom as $row) {
-                    if ($grade >= $row->minscore) {
+                    if ($grade >= $row->minscore && $grade <= $row->maxscore) {
                         return number_format($grade, 2);
                     }
                 }
@@ -230,7 +230,7 @@ class helper {
             $custom = self::get_custom_transmute_rows($courseid);
             if (!empty($custom)) {
                 foreach ($custom as $row) {
-                    if ($grade >= $row->minscore) {
+                    if ($grade >= $row->minscore && $grade <= $row->maxscore) {
                         return (bool)$row->ispassing;
                     }
                 }
@@ -265,13 +265,39 @@ class helper {
         ];
     }
 
-    public static function get_non_teaching_students(\context_course $context): array {
-        $all = get_enrolled_users($context, '', 0, 'u.*', 'u.lastname ASC, u.firstname ASC');
+    public static function get_non_teaching_students(\context_course $context, int $groupid = 0): array {
+        global $DB;
+
+        if ($groupid === 0) {
+            $courseid = (int)$context->instanceid;
+            $course = $DB->get_record('course', ['id' => $courseid]);
+            if ($course) {
+                $groupmode = groups_get_course_groupmode($course);
+                if ($groupmode == SEPARATEGROUPS && !has_capability('moodle/site:accessallgroups', $context)) {
+                    $activegroup = groups_get_course_group($course);
+                    $groupid = $activegroup ? (int)$activegroup : -1;
+                } else if ($groupmode != NOGROUPS) {
+                    $activegroup = groups_get_course_group($course);
+                    if ($activegroup) {
+                        $groupid = (int)$activegroup;
+                    }
+                }
+            }
+        }
+
+        if ($groupid === -1) {
+            return [];
+        }
+
+        $all = get_enrolled_users($context, '', $groupid, 'u.*', 'u.lastname ASC, u.firstname ASC');
         $teachers = get_enrolled_users($context, 'local/gradesheet:manage', 0, 'u.id');
 
         $filtered = [];
         foreach ($all as $student) {
             if (is_siteadmin($student->id)) {
+                continue;
+            }
+            if (has_capability('moodle/grade:viewall', $context, $student->id)) {
                 continue;
             }
             if (!isset($teachers[$student->id])) {
@@ -412,6 +438,11 @@ class helper {
                 continue;
             }
 
+            $parentcat = $gi->get_parent_category();
+            if ($parentcat && method_exists($parentcat, 'is_hidden') && $parentcat->is_hidden()) {
+                continue;
+            }
+
             $ggrade = $grades[$gitem->id][$studentid] ?? null;
             if ($ggrade) {
                 $gg = new \grade_grade((array)$ggrade, false);
@@ -420,8 +451,13 @@ class helper {
                 }
             }
 
-            $val = ($ggrade && $ggrade->finalgrade !== null)
-                ? floatval($ggrade->finalgrade) : 0;
+            // Exclude empty/ungraded items so future or uncompleted activities
+            // do not pull down the student's average as 0%.
+            if (!$ggrade || $ggrade->finalgrade === null || $ggrade->finalgrade === '') {
+                continue;
+            }
+
+            $val = floatval($ggrade->finalgrade);
 
             $max = floatval($gitem->grademax);
             if ($max > 0 && $max != 100) {

@@ -5,12 +5,12 @@ defined('MOODLE_INTERNAL') || die();
 
 class gradesheet_service {
 
-    public static function compute_all_grades(int $courseid): array {
+    public static function compute_all_grades(int $courseid, int $groupid = 0): array {
         global $DB;
 
         $cfg    = helper::load_course_config($courseid);
         $ctx    = \context_course::instance($courseid);
-        $students = helper::get_non_teaching_students($ctx);
+        $students = helper::get_non_teaching_students($ctx, $groupid);
         $statusmap = helper::get_status_map($courseid);
 
         $categories = $DB->get_records('local_gradesheet_categories',

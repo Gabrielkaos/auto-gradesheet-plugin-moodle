@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && optional_param('action', '', PARAM_
 }
 
 $courseid = optional_param('courseid', 0, PARAM_INT);
+$groupid  = optional_param('group', 0, PARAM_INT);
 $context = null;
 
 if ($courseid > 0) {
@@ -30,7 +31,8 @@ if ($courseid > 0) {
     helper::ensure_course_defaults($courseid);
 }
 
-$PAGE->set_url('/local/gradesheet/index.php', $courseid > 0 ? ['courseid' => $courseid] : []);
+$urlparams = array_filter(['courseid' => $courseid, 'group' => $groupid]);
+$PAGE->set_url('/local/gradesheet/index.php', $urlparams);
 
 if ($context) {
     $PAGE->set_context($context);
@@ -186,7 +188,20 @@ echo $OUTPUT->footer();
         echo '</div>';
 
     } else {
-        $students  = helper::get_non_teaching_students($context);
+        $course_obj = get_course($courseid);
+        $groupmode = groups_get_course_groupmode($course_obj);
+        if ($groupmode != NOGROUPS) {
+            echo '<div class="mb-3">';
+            groups_print_course_menu($course_obj, $PAGE->url);
+            echo '</div>';
+        }
+
+        $activegroup = groups_get_course_group($course_obj);
+        if ($groupid === 0 && $activegroup) {
+            $groupid = (int)$activegroup;
+        }
+
+        $students  = helper::get_non_teaching_students($context, $groupid);
         $statusmap = helper::get_status_map($courseid);
         $statusoptions = helper::status_options();
 
@@ -231,10 +246,11 @@ echo $OUTPUT->footer();
             echo '</div></div>';
         }
 
+        $groupparam = $groupid ? '&group=' . $groupid : '';
         $btncls = $weightvalid['valid'] ? '' : ' disabled';
-        echo '<a href="preview.php?courseid='      . $courseid . '" class="btn btn-primary mb-3' . $btncls . '">Preview & Print</a> ';
-        echo '<a href="export.php?courseid='       . $courseid . '" class="btn btn-success mb-3' . $btncls . '">Download PDF</a> ';
-        echo '<a href="export_excel.php?courseid=' . $courseid . '" class="btn btn-warning mb-3' . $btncls . '">Download Excel</a> ';
+        echo '<a href="preview.php?courseid='      . $courseid . $groupparam . '" class="btn btn-primary mb-3' . $btncls . '">Preview & Print</a> ';
+        echo '<a href="export.php?courseid='       . $courseid . $groupparam . '" class="btn btn-success mb-3' . $btncls . '">Download PDF</a> ';
+        echo '<a href="export_excel.php?courseid=' . $courseid . $groupparam . '" class="btn btn-warning mb-3' . $btncls . '">Download Excel</a> ';
         echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-secondary mb-3">Settings</a>';
 
         echo '<div class="row align-items-end mb-3">';

@@ -9,6 +9,7 @@ use local_gradesheet\helper;
 use local_gradesheet\gradesheet_service;
 
 $courseid = required_param('courseid', PARAM_INT);
+$groupid  = optional_param('group', 0, PARAM_INT);
 $course   = get_course($courseid);
 require_login($course);
 $context  = context_course::instance($courseid);
@@ -24,7 +25,7 @@ if (!$weightvalid['valid']) {
     );
 }
 
-$data = gradesheet_service::compute_all_grades($courseid);
+$data = gradesheet_service::compute_all_grades($courseid, $groupid);
 
 $coursename    = $data['coursename'];
 $semester      = $data['semester'];
@@ -39,6 +40,15 @@ $depthead      = $data['depthead'];
 $registrar     = $data['registrar'];
 $collegedean   = $data['collegedean'];
 $rows          = $data['rows'];
+
+if (empty($rows)) {
+    redirect(
+        new moodle_url('/local/gradesheet/index.php', ['courseid' => $courseid]),
+        'Cannot export PDF: No students are enrolled in this course.',
+        null,
+        \core\output\notification::NOTIFY_WARNING
+    );
+}
 
 class gradesheet_pdf extends pdf {
     public $report = [];
@@ -95,7 +105,7 @@ $pdf->report = [
 // legend, table header, and signature block, capped at 20 student rows.
 $rowsperpage    = 20;
 
-$pages = array_chunk($rows, $rowsperpage);
+$pages = empty($rows) ? [[]] : array_chunk($rows, $rowsperpage);
 
 $totalpages = count($pages);
 
@@ -185,7 +195,8 @@ foreach ($pages as $pageindex => $pagerows) {
         $pdf->Cell($col[4], 5.5, $row['finals'],   1, 0, 'C', $fill);
         $pdf->Cell($col[5], 5.5, $row['average'],  1, 0, 'C', $fill);
         if ($isFailed) $pdf->SetTextColor(180, 0, 0);
-        $pdf->Cell($col[6], 5.5, $row['remarks'],  1, 1, 'C', $fill);
+        $remarks = ($row['remarks'] === 'Withdrawn w/ permission') ? 'WP' : $row['remarks'];
+        $pdf->Cell($col[6], 5.5, $remarks,  1, 1, 'C', $fill);
         $pdf->SetTextColor(0, 0, 0);
 
         $rownum++;
@@ -234,7 +245,7 @@ foreach ($pages as $pageindex => $pagerows) {
     $pdf->Cell(0,  3, 'College Dean', 0, 1, 'C');
 }
 
-$filename = 'ReportOfGrades_' . str_replace(' ', '_', $coursename) . '_' . date('Ymd') . '.pdf';
+$filename = clean_filename('ReportOfGrades_' . str_replace(' ', '_', $coursename) . '_' . date('Ymd') . '.pdf');
 while (ob_get_level()) {
     ob_end_clean();
 }

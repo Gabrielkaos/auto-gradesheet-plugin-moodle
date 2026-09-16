@@ -557,7 +557,7 @@ echo '<div class="local-gradesheet-page">';
 
             <?php if ($usingcustomscale): ?>
                 <?php 
-                    $reset_form = '<form method="post" onsubmit="return confirm(\'Delete all custom brackets and revert to the default ESSU scale?\\\');"><input type="hidden" name="action" value="resetscale"><input type="hidden" name="sesskey" value="' . sesskey() . '"><button type="submit" class="btn btn-danger btn-sm">Reset to Default Scale</button></form>';
+                    $reset_form = '<form method="post" onsubmit="return confirm(\'Delete all custom brackets and revert to the default ESSU scale?\');"><input type="hidden" name="action" value="resetscale"><input type="hidden" name="sesskey" value="' . sesskey() . '"><button type="submit" class="btn btn-danger btn-sm">Reset to Default Scale</button></form>';
                     echo \local_gradesheet\helper::render_alert("This course is using a <strong>custom</strong> grading scale.", "info", "✓", $reset_form);
                 ?>
                 
