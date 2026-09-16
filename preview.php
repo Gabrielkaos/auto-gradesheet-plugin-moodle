@@ -13,6 +13,15 @@ require_login($course);
 $context  = context_course::instance($courseid);
 require_capability('local/gradesheet:manage', $context);
 
+if ($groupid > 0 && !helper::check_group_access($context, $groupid)) {
+    redirect(
+        new moodle_url('/local/gradesheet/index.php', ['courseid' => $courseid]),
+        'You do not have permission to access the requested group.',
+        null,
+        \core\output\notification::NOTIFY_ERROR
+    );
+}
+
 $PAGE->set_url('/local/gradesheet/preview.php', array_filter(['courseid' => $courseid, 'group' => $groupid]));
 $PAGE->set_context($context);
 $PAGE->set_title(get_string('pluginname', 'local_gradesheet'));

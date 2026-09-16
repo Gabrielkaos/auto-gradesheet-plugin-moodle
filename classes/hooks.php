@@ -16,6 +16,10 @@ class hooks {
      */
     private static function get_distinct_options(string $fieldname): array {
         global $DB;
+        $allowed = ['department_head', 'registrar', 'college_dean', 'instructor'];
+        if (!in_array($fieldname, $allowed, true)) {
+            return [];
+        }
         $options = [];
         try {
             $records = $DB->get_fieldset_sql(
@@ -226,17 +230,17 @@ class hooks {
 
             $configdata = (object)[
                 'courseid'        => $courseid,
-                'semester'        => $data->gradesheet_semester ?? 'First Semester',
-                'schoolyear'      => $data->gradesheet_schoolyear ?? (date('Y') . '-' . (date('Y') + 1)),
-                'coursenumber'    => !empty($data->gradesheet_coursenumber) ? $data->gradesheet_coursenumber : '',
-                'descriptive'     => !empty($data->gradesheet_descriptive) ? $data->gradesheet_descriptive : '',
-                'courseandyear'   => !empty($data->gradesheet_courseandyear) ? $data->gradesheet_courseandyear : '',
-                'schedule'        => $full_schedule,
-                'units'           => $data->gradesheet_units ?? '3',
-                'instructor'      => !empty($data->gradesheet_instructor) ? strtoupper(trim($data->gradesheet_instructor)) : '',
-                'department_head' => $resolve_signatory('department_head'),
-                'registrar'       => $resolve_signatory('registrar'),
-                'college_dean'    => $resolve_signatory('college_dean'),
+                'semester'        => mb_substr($data->gradesheet_semester ?? 'First Semester', 0, 50),
+                'schoolyear'      => mb_substr($data->gradesheet_schoolyear ?? (date('Y') . '-' . (date('Y') + 1)), 0, 20),
+                'coursenumber'    => mb_substr(!empty($data->gradesheet_coursenumber) ? $data->gradesheet_coursenumber : '', 0, 50),
+                'descriptive'     => mb_substr(!empty($data->gradesheet_descriptive) ? $data->gradesheet_descriptive : '', 0, 100),
+                'courseandyear'   => mb_substr(!empty($data->gradesheet_courseandyear) ? $data->gradesheet_courseandyear : '', 0, 50),
+                'schedule'        => mb_substr($full_schedule, 0, 50),
+                'units'           => mb_substr($data->gradesheet_units ?? '3', 0, 10),
+                'instructor'      => mb_substr(!empty($data->gradesheet_instructor) ? strtoupper(trim($data->gradesheet_instructor)) : '', 0, 100),
+                'department_head' => mb_substr($resolve_signatory('department_head'), 0, 100),
+                'registrar'       => mb_substr($resolve_signatory('registrar'), 0, 100),
+                'college_dean'    => mb_substr($resolve_signatory('college_dean'), 0, 100),
                 'timemodified'    => time(),
             ];
 

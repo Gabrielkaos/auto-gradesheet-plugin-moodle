@@ -2,7 +2,15 @@
 defined('MOODLE_INTERNAL') || die();
 
 function local_gradesheet_extend_navigation_course($navigation, $course, $context) {
-    if (has_capability('local/gradesheet:view', $context) || has_capability('local/gradesheet:manage', $context)) {
+    $canmanage = has_capability('local/gradesheet:manage', $context);
+    $isteacher = $canmanage || has_capability('moodle/grade:viewall', $context);
+
+    // SEC-03: Suppress navigation node for students when course-level grades are hidden.
+    if (!$isteacher && empty($course->showgrades)) {
+        return;
+    }
+
+    if (has_capability('local/gradesheet:view', $context) || $canmanage) {
         $url  = new moodle_url('/local/gradesheet/index.php', ['courseid' => $course->id]);
         $node = navigation_node::create(
             'Grade Sheet',

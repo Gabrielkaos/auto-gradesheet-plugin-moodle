@@ -48,17 +48,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'savedetails') {
         $existing = $DB->get_record('local_gradesheet_config', ['courseid' => $courseid]);
         $details  = [
-            'semester'        => required_param('semester',        PARAM_TEXT),
-            'schoolyear'      => required_param('schoolyear',      PARAM_TEXT),
-            'coursenumber'    => required_param('coursenumber',     PARAM_TEXT),
-            'descriptive'     => required_param('descriptive',      PARAM_TEXT),
-            'courseandyear'   => required_param('courseandyear',    PARAM_TEXT),
-            'schedule'        => required_param('schedule',         PARAM_TEXT),
-            'units'           => required_param('units',            PARAM_TEXT),
-            'instructor'      => required_param('instructor',       PARAM_TEXT),
-            'department_head' => required_param('department_head',  PARAM_TEXT),
-            'registrar'       => required_param('registrar',        PARAM_TEXT),
-            'college_dean'    => required_param('college_dean',     PARAM_TEXT),
+            'semester'        => mb_substr(required_param('semester',        PARAM_TEXT), 0, 50),
+            'schoolyear'      => mb_substr(required_param('schoolyear',      PARAM_TEXT), 0, 20),
+            'coursenumber'    => mb_substr(required_param('coursenumber',     PARAM_TEXT), 0, 50),
+            'descriptive'     => mb_substr(required_param('descriptive',      PARAM_TEXT), 0, 100),
+            'courseandyear'   => mb_substr(required_param('courseandyear',    PARAM_TEXT), 0, 50),
+            'schedule'        => mb_substr(required_param('schedule',         PARAM_TEXT), 0, 50),
+            'units'           => mb_substr(required_param('units',            PARAM_TEXT), 0, 10),
+            'instructor'      => mb_substr(required_param('instructor',       PARAM_TEXT), 0, 100),
+            'department_head' => mb_substr(required_param('department_head',  PARAM_TEXT), 0, 100),
+            'registrar'       => mb_substr(required_param('registrar',        PARAM_TEXT), 0, 100),
+            'college_dean'    => mb_substr(required_param('college_dean',     PARAM_TEXT), 0, 100),
         ];
         if ($existing) {
             foreach ($details as $k => $v) $existing->$k = $v;
@@ -210,10 +210,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Save grade item mapping
     if ($action === 'savemapping') {
+        $validcategories = $DB->get_records('local_gradesheet_categories', ['courseid' => $courseid], '', 'id');
         foreach ($gitems as $gitem) {
             $period   = optional_param('period_' . $gitem->id,  'finals', PARAM_TEXT);
             $catid    = optional_param('cat_'    . $gitem->id,  0,        PARAM_INT);
             $period   = in_array($period, ['midterm', 'finals']) ? $period : 'finals';
+
+            if ($catid > 0 && !isset($validcategories[$catid])) {
+                $catid = 0;
+            }
 
             $existing = $DB->get_record('local_gradesheet_itemmap', [
                 'courseid' => $courseid, 'gradeitemid' => $gitem->id,
@@ -294,7 +299,7 @@ echo '<div class="local-gradesheet-page">';
                 <div class="form-group row mb-3">
                     <label class="col-sm-4 col-form-label"><strong>School Year</strong></label>
                     <div class="col-sm-4">
-                        <input type="text" name="schoolyear" class="form-control"
+                        <input type="text" name="schoolyear" class="form-control" maxlength="20"
                                value="<?php echo $config ? s($config->schoolyear) : '2025-2026'; ?>">
                     </div>
                 </div>
@@ -303,18 +308,18 @@ echo '<div class="local-gradesheet-page">';
 
                 <?php
                 $fields = [
-                    'coursenumber'  => ['Subject and Course No.', 'e.g. CS 101'],
-                    'descriptive'   => ['Descriptive Title',      'e.g. Computer Programming 1'],
-                    'courseandyear' => ['Course and Year',         'e.g. BSCS 2A'],
-                    'schedule'      => ['Schedule of Classes',     'e.g. MWF 8:00-9:00 AM'],
-                    'units'         => ['Number of Units',         'e.g. 3'],
+                    'coursenumber'  => ['Subject and Course No.', 'e.g. CS 101', 50],
+                    'descriptive'   => ['Descriptive Title',      'e.g. Computer Programming 1', 100],
+                    'courseandyear' => ['Course and Year',         'e.g. BSCS 2A', 50],
+                    'schedule'      => ['Schedule of Classes',     'e.g. MWF 8:00-9:00 AM', 50],
+                    'units'         => ['Number of Units',         'e.g. 3', 10],
                 ];
-                foreach ($fields as $fname => [$label, $placeholder]):
+                foreach ($fields as $fname => [$label, $placeholder, $maxlen]):
                 ?>
                 <div class="form-group row mb-3">
                     <label class="col-sm-4 col-form-label"><strong><?php echo $label; ?></strong></label>
                     <div class="col-sm-6">
-                        <input type="text" name="<?php echo $fname; ?>" class="form-control"
+                        <input type="text" name="<?php echo $fname; ?>" class="form-control" maxlength="<?php echo $maxlen; ?>"
                                value="<?php echo $config && isset($config->$fname) ? s($config->$fname) : ''; ?>"
                                placeholder="<?php echo $placeholder; ?>">
                     </div>
@@ -335,7 +340,7 @@ echo '<div class="local-gradesheet-page">';
                 <div class="form-group row mb-3">
                     <label class="col-sm-4 col-form-label"><strong><?php echo $label; ?></strong></label>
                     <div class="col-sm-6">
-                        <input type="text" name="<?php echo $fname; ?>" class="form-control"
+                        <input type="text" name="<?php echo $fname; ?>" class="form-control" maxlength="100"
                                value="<?php echo $config && isset($config->$fname) ? s($config->$fname) : ''; ?>"
                                placeholder="Full name in CAPS">
                     </div>
@@ -626,7 +631,8 @@ echo '<div class="local-gradesheet-page">';
                                     sesskey(),
                                     "Delete",
                                     false,
-                                    '<input type="hidden" name="tid" value="' . $row->id . '">'
+                                    '<input type="hidden" name="tid" value="' . $row->id . '">',
+                                    "Delete this grading bracket?"
                                 ); ?>
                             </td>
                         </tr>

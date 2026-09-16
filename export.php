@@ -15,6 +15,15 @@ require_login($course);
 $context  = context_course::instance($courseid);
 require_capability('local/gradesheet:manage', $context);
 
+if ($groupid > 0 && !helper::check_group_access($context, $groupid)) {
+    redirect(
+        new moodle_url('/local/gradesheet/index.php', ['courseid' => $courseid]),
+        'You do not have permission to access the requested group.',
+        null,
+        \core\output\notification::NOTIFY_ERROR
+    );
+}
+
 $weightvalid = helper::validate_weight_sum($courseid);
 if (!$weightvalid['valid']) {
     redirect(

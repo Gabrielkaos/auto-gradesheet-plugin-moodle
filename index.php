@@ -102,13 +102,24 @@ if ($courseid) {
         ['courseid' => $courseid], 'sortorder ASC');
     $weightvalid = helper::validate_weight_sum($courseid);
 
-    if (!has_capability('local/gradesheet:manage', $context)) {
+    $canmanage = has_capability('local/gradesheet:manage', $context);
+    $isteacher = $canmanage || has_capability('moodle/grade:viewall', $context);
+
+    if (!$isteacher) {
         if (!has_capability('local/gradesheet:view', $context)) {
             echo $OUTPUT->notification('You do not have permission to view grade sheets.', 'error');
-            echo '</div>';
-echo $OUTPUT->footer();
+            echo '</div></div>';
+            echo $OUTPUT->footer();
             exit;
         }
+
+        if (empty($course_obj->showgrades)) {
+            echo $OUTPUT->notification(get_string('gradesarehidden', 'grades'), 'warning');
+            echo '</div></div>';
+            echo $OUTPUT->footer();
+            exit;
+        }
+
         $grades = helper::compute_student_grades($courseid, $USER->id);
         $mystatus = helper::get_student_status($courseid, $USER->id);
 
@@ -190,6 +201,12 @@ echo $OUTPUT->footer();
     } else {
         $course_obj = get_course($courseid);
         $groupmode = groups_get_course_groupmode($course_obj);
+
+        if ($groupid > 0 && !helper::check_group_access($context, $groupid)) {
+            echo $OUTPUT->notification('You do not have permission to access the requested group.', 'error');
+            $groupid = -1;
+        }
+
         if ($groupmode != NOGROUPS) {
             echo '<div class="mb-3">';
             groups_print_course_menu($course_obj, $PAGE->url);
@@ -219,7 +236,9 @@ echo $OUTPUT->footer();
                 echo 'You have <strong>no categories</strong> defined. ';
             }
             echo 'Printing and exporting are <strong>disabled</strong> until this is corrected. ';
-            echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-light btn-sm ms-2"><strong>Go to Settings</strong></a>';
+            if ($canmanage) {
+                echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-light btn-sm ms-2"><strong>Go to Settings</strong></a>';
+            }
             echo '</div></div>';
         }
 
@@ -242,16 +261,20 @@ echo $OUTPUT->footer();
                 $parts[] = get_string('warnnoperioditems', 'local_gradesheet', 'Finals');
             }
             echo implode(' ', $parts);
-            echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-light btn-sm ms-2"><strong>Go to Settings</strong></a>';
+            if ($canmanage) {
+                echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-light btn-sm ms-2"><strong>Go to Settings</strong></a>';
+            }
             echo '</div></div>';
         }
 
-        $groupparam = $groupid ? '&group=' . $groupid : '';
-        $btncls = $weightvalid['valid'] ? '' : ' disabled';
-        echo '<a href="preview.php?courseid='      . $courseid . $groupparam . '" class="btn btn-primary mb-3' . $btncls . '">Preview & Print</a> ';
-        echo '<a href="export.php?courseid='       . $courseid . $groupparam . '" class="btn btn-success mb-3' . $btncls . '">Download PDF</a> ';
-        echo '<a href="export_excel.php?courseid=' . $courseid . $groupparam . '" class="btn btn-warning mb-3' . $btncls . '">Download Excel</a> ';
-        echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-secondary mb-3">Settings</a>';
+        if ($canmanage) {
+            $groupparam = ($groupid > 0) ? '&group=' . $groupid : '';
+            $btncls = $weightvalid['valid'] ? '' : ' disabled';
+            echo '<a href="preview.php?courseid='      . $courseid . $groupparam . '" class="btn btn-primary mb-3' . $btncls . '">Preview & Print</a> ';
+            echo '<a href="export.php?courseid='       . $courseid . $groupparam . '" class="btn btn-success mb-3' . $btncls . '">Download PDF</a> ';
+            echo '<a href="export_excel.php?courseid=' . $courseid . $groupparam . '" class="btn btn-warning mb-3' . $btncls . '">Download Excel</a> ';
+            echo '<a href="course_settings.php?courseid=' . $courseid . '" class="btn btn-secondary mb-3">Settings</a>';
+        }
 
         echo '<div class="row align-items-end mb-3">';
 
@@ -364,20 +387,29 @@ echo $OUTPUT->footer();
                 echo '<td><span class="badge ' . $badgeclass . '">' . ($hasdata ? $g['remarks'] : '-') . '</span></td>';
             }
 
-            // Status-setting control — always available regardless of current status.
+            // Status-setting control — editable for managers/editing teachers, read-only for non-editing teachers.
             echo '<td>';
-            echo '<form method="post" class="m-0">';
-            echo '<input type="hidden" name="action" value="setstatus">';
-            echo '<input type="hidden" name="sesskey" value="' . sesskey() . '">';
-            echo '<input type="hidden" name="courseid" value="' . $courseid . '">';
-            echo '<input type="hidden" name="studentid" value="' . $student->id . '">';
-            echo '<select name="status" class="form-control form-control-sm" onchange="this.form.submit()">';
-            foreach ($statusoptions as $val => $label) {
-                $sel = ($curstatus === $val) ? 'selected' : '';
-                echo "<option value='{$val}' {$sel}>" . s($label) . "</option>";
+            if ($canmanage) {
+                echo '<form method="post" class="m-0">';
+                echo '<input type="hidden" name="action" value="setstatus">';
+                echo '<input type="hidden" name="sesskey" value="' . sesskey() . '">';
+                echo '<input type="hidden" name="courseid" value="' . $courseid . '">';
+                echo '<input type="hidden" name="studentid" value="' . $student->id . '">';
+                echo '<select name="status" class="form-control form-control-sm" onchange="this.form.submit()">';
+                foreach ($statusoptions as $val => $label) {
+                    $sel = ($curstatus === $val) ? 'selected' : '';
+                    echo "<option value='{$val}' {$sel}>" . s($label) . "</option>";
+                }
+                echo '</select>';
+                echo '</form>';
+            } else {
+                echo '<select name="status" class="form-control form-control-sm" disabled>';
+                foreach ($statusoptions as $val => $label) {
+                    $sel = ($curstatus === $val) ? 'selected' : '';
+                    echo "<option value='{$val}' {$sel}>" . s($label) . "</option>";
+                }
+                echo '</select>';
             }
-            echo '</select>';
-            echo '</form>';
             echo '</td>';
 
             echo '</tr>';

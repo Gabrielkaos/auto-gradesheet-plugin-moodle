@@ -265,12 +265,43 @@ class helper {
         ];
     }
 
+    /**
+     * Verify whether the current user is allowed to access the specified group in this course context.
+     *
+     * @param \context_course $context Course context.
+     * @param int $groupid Group ID to validate (0 means all/default group).
+     * @return bool True if allowed, false otherwise.
+     */
+    public static function check_group_access(\context_course $context, int $groupid): bool {
+        global $DB, $USER;
+
+        if ($groupid <= 0) {
+            return true;
+        }
+
+        $courseid = (int)$context->instanceid;
+        if (!$DB->record_exists('groups', ['id' => $groupid, 'courseid' => $courseid])) {
+            return false;
+        }
+
+        $course = $DB->get_record('course', ['id' => $courseid]);
+        if ($course) {
+            $groupmode = groups_get_course_groupmode($course);
+            if ($groupmode == SEPARATEGROUPS && !has_capability('moodle/site:accessallgroups', $context)) {
+                return groups_is_member($groupid, $USER->id);
+            }
+        }
+
+        return true;
+    }
+
     public static function get_non_teaching_students(\context_course $context, int $groupid = 0): array {
-        global $DB;
+        global $DB, $USER;
+
+        $courseid = (int)$context->instanceid;
+        $course = $DB->get_record('course', ['id' => $courseid]);
 
         if ($groupid === 0) {
-            $courseid = (int)$context->instanceid;
-            $course = $DB->get_record('course', ['id' => $courseid]);
             if ($course) {
                 $groupmode = groups_get_course_groupmode($course);
                 if ($groupmode == SEPARATEGROUPS && !has_capability('moodle/site:accessallgroups', $context)) {
@@ -283,9 +314,13 @@ class helper {
                     }
                 }
             }
+        } else if ($groupid > 0) {
+            if (!self::check_group_access($context, $groupid)) {
+                return [];
+            }
         }
 
-        if ($groupid === -1) {
+        if ($groupid === -1 || $groupid < 0) {
             return [];
         }
 
@@ -661,12 +696,13 @@ class helper {
     /**
      * Renders standard table action buttons (edit / delete).
      */
-    public static function render_table_actions(string $edit_url, string $delete_action, string $sesskey, string $delete_label = 'Delete', bool $delete_disabled = false, string $extra_hidden = ''): string {
+    public static function render_table_actions(string $edit_url, string $delete_action, string $sesskey, string $delete_label = 'Delete', bool $delete_disabled = false, string $extra_hidden = '', string $confirm_msg = 'Delete this bracket?'): string {
         $html = '<a href="' . htmlspecialchars($edit_url) . '" class="btn btn-warning btn-sm me-2">Edit</a>';
         if ($delete_disabled) {
             $html .= '<button type="button" class="btn btn-danger btn-sm disabled" tabindex="-1">' . htmlspecialchars($delete_label) . '</button>';
         } else {
-            $html .= '<form method="post" class="d-inline m-0">';
+            $confirm_attr = !empty($confirm_msg) ? ' onsubmit="return confirm(\'' . addslashes(htmlspecialchars($confirm_msg, ENT_QUOTES)) . '\');"' : '';
+            $html .= '<form method="post" class="d-inline m-0"' . $confirm_attr . '>';
             $html .= '<input type="hidden" name="action" value="' . htmlspecialchars($delete_action) . '">';
             $html .= '<input type="hidden" name="sesskey" value="' . htmlspecialchars($sesskey) . '">';
             $html .= $extra_hidden;
