@@ -381,10 +381,10 @@ if ($courseid) {
                     }
                 }
 
-                echo '<td>' . helper::transmute_equiv($g['midterm'], $courseid) . '</td>';
-                echo '<td>' . helper::transmute_equiv($g['finals'], $courseid) . '</td>';
-                echo '<td>' . $g['transmuted'] . '</td>';
-                echo '<td><span class="badge ' . $badgeclass . '">' . ($hasdata ? $g['remarks'] : '-') . '</span></td>';
+                echo '<td>' . s(helper::transmute_equiv($g['midterm'], $courseid)) . '</td>';
+                echo '<td>' . s(helper::transmute_equiv($g['finals'], $courseid)) . '</td>';
+                echo '<td>' . s($g['transmuted']) . '</td>';
+                echo '<td><span class="badge ' . $badgeclass . '">' . ($hasdata ? s($g['remarks']) : '-') . '</span></td>';
             }
 
             // Status-setting control — editable for managers/editing teachers, read-only for non-editing teachers.

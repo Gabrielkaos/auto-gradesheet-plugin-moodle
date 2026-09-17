@@ -104,8 +104,8 @@ class helper {
                 'timemodified'    => time(),
                 'semester'        => 'First Semester',
                 'schoolyear'      => date('Y') . '-' . (date('Y') + 1),
-                'coursenumber'    => $course ? $course->shortname : 'CSS 101',
-                'descriptive'     => $course ? $course->fullname : 'Course Title',
+                'coursenumber'    => $course ? mb_substr($course->shortname, 0, 50) : 'CSS 101',
+                'descriptive'     => $course ? mb_substr($course->fullname, 0, 100) : 'Course Title',
                 'courseandyear'   => 'BSCS 1A',
                 'schedule'        => 'TBA',
                 'units'           => '3',
@@ -358,7 +358,7 @@ class helper {
 
         $gitems = $DB->get_records_select(
             'grade_items',
-            'courseid = ? AND itemtype != ? AND itemname IS NOT NULL',
+            'courseid = ? AND itemtype != ? AND itemname IS NOT NULL AND gradetype = 1',
             [$courseid, 'course'],
             '',
             'id'
@@ -398,7 +398,7 @@ class helper {
 
         $gitems = $DB->get_records_select(
             'grade_items',
-            'courseid = ? AND itemtype != ? AND itemname IS NOT NULL',
+            'courseid = ? AND itemtype != ? AND itemname IS NOT NULL AND gradetype = 1',
             [$courseid, 'course']
         );
         $categories = $DB->get_records('local_gradesheet_categories',

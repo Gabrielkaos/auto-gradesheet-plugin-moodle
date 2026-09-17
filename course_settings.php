@@ -19,7 +19,7 @@ $coursename = $DB->get_field('course', 'fullname', ['id' => $courseid]);
 
 $gitems = $DB->get_records_select(
     'grade_items',
-    'courseid = ? AND itemtype != ? AND itemname IS NOT NULL',
+    'courseid = ? AND itemtype != ? AND itemname IS NOT NULL AND gradetype = 1',
     [$courseid, 'course']
 );
 
@@ -77,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Add a new category
     if ($action === 'addcategory') {
-        $name   = required_param('catname',   PARAM_TEXT);
+        $name   = mb_substr(required_param('catname',   PARAM_TEXT), 0, 100);
         $weight = required_param('catweight', PARAM_FLOAT);
         if (empty($name) || $weight < 0) {
             redirect($catsurl, 'Category name is required and the weight cannot be negative.', null,
@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Update an existing category
     if ($action === 'updatecategory') {
         $catid  = required_param('catid', PARAM_INT);
-        $name   = required_param('catname', PARAM_TEXT);
+        $name   = mb_substr(required_param('catname', PARAM_TEXT), 0, 100);
         $weight = required_param('catweight', PARAM_FLOAT);
 
         $category = $DB->get_record('local_gradesheet_categories', ['id' => $catid, 'courseid' => $courseid]);
@@ -149,7 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'addtransmute') {
         $min   = required_param('tmin', PARAM_FLOAT);
         $max   = required_param('tmax', PARAM_FLOAT);
-        $desc  = required_param('tdesc', PARAM_TEXT);
+        $desc  = mb_substr(required_param('tdesc', PARAM_TEXT), 0, 100);
         $ispassing = optional_param('tispassing', 0, PARAM_INT) ? 1 : 0;
         if ($max < $min) {
             redirect($scaleurl, 'Max score must be greater than or equal to min score.', null,
@@ -173,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tid   = required_param('tid', PARAM_INT);
         $min   = required_param('tmin', PARAM_FLOAT);
         $max   = required_param('tmax', PARAM_FLOAT);
-        $desc  = required_param('tdesc', PARAM_TEXT);
+        $desc  = mb_substr(required_param('tdesc', PARAM_TEXT), 0, 100);
         $ispassing = optional_param('tispassing', 0, PARAM_INT) ? 1 : 0;
 
         $row = $DB->get_record('local_gradesheet_transmute', ['id' => $tid, 'courseid' => $courseid]);
@@ -393,7 +393,7 @@ echo '<div class="local-gradesheet-page">';
                                 <input type="hidden" name="action" value="updatecategory">
                                 <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
                                 <input type="hidden" name="catid" value="<?php echo $cat->id; ?>">
-                                <input type="text" name="catname" class="form-control form-control-sm"
+                                <input type="text" name="catname" class="form-control form-control-sm" maxlength="100"
                                        value="<?php echo s($cat->name); ?>">
                             </form>
                         </td>
@@ -455,7 +455,7 @@ echo '<div class="local-gradesheet-page">';
                 <div class="form-row align-items-end">
                     <div class="col-md-5">
                         <label><strong>Category Name</strong></label>
-                        <input type="text" name="catname" class="form-control"
+                        <input type="text" name="catname" class="form-control" maxlength="100"
                                placeholder="e.g. Quizzes, Exams, Projects, Attendance">
                     </div>
                     <div class="col-md-3">
@@ -605,7 +605,7 @@ echo '<div class="local-gradesheet-page">';
                                 </form>
                             </td>
                             <td><input type="number" step="0.01" name="tmax" class="form-control form-control-sm" form="edittransmuteform<?php echo $row->id; ?>" value="<?php echo s($row->maxscore); ?>"></td>
-                            <td><input type="text" name="tdesc" class="form-control form-control-sm" form="edittransmuteform<?php echo $row->id; ?>" value="<?php echo s($row->descriptor); ?>"></td>
+                            <td><input type="text" name="tdesc" class="form-control form-control-sm" maxlength="100" form="edittransmuteform<?php echo $row->id; ?>" value="<?php echo s($row->descriptor); ?>"></td>
                             <td>
                                 <div class="form-check">
                                     <input type="checkbox" class="form-check-input" name="tispassing" value="1"
@@ -666,7 +666,7 @@ echo '<div class="local-gradesheet-page">';
                     </div>
                     <div class="col-md-4">
                         <label><strong>Descriptor</strong></label>
-                        <input type="text" name="tdesc" class="form-control" placeholder="e.g. Outstanding">
+                        <input type="text" name="tdesc" class="form-control" maxlength="100" placeholder="e.g. Outstanding">
                     </div>
                     <div class="col-md-2 mt-2">
                         <div class="form-check">
