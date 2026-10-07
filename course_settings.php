@@ -15,6 +15,9 @@ $PAGE->set_context($context);
 $PAGE->set_title('Grade Sheet Settings');
 $PAGE->set_heading('Grade Sheet Settings');
 
+helper::ensure_course_defaults($courseid);
+helper::auto_map_unmapped_items($courseid);
+
 $coursename = $DB->get_field('course', 'fullname', ['id' => $courseid]);
 
 $gitems = $DB->get_records_select(
@@ -291,6 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $DB->insert_record('local_gradesheet_categories', (object)[
                     'courseid' => $courseid, 'name' => $name, 'weight' => round($weight, 2), 'sortorder' => $sortorder,
                 ]);
+                helper::auto_map_unmapped_items($courseid);
                 helper::reset_caches();
                 $ok($catsurl, "Category '" . s($name) . "' added.", $weight_note());
                 break;
@@ -452,6 +456,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 $ok($mapurl, 'Grade item mapping saved!', $warn);
+                break;
+
+            case 'automap':
+                $count = helper::auto_map_unmapped_items($courseid);
+                helper::reset_caches();
+                if ($count > 0) {
+                    $ok($mapurl, "Successfully auto-detected and mapped {$count} grade item(s)!");
+                } else {
+                    $ok($mapurl, 'All grade items are already mapped, or no unmapped items were found.');
+                }
                 break;
 
             case '':
@@ -765,11 +779,15 @@ echo '<div class="local-gradesheet-page">';
                 <?php else: ?>
                     <div class="gs-mapping-status text-success mb-2">&#10003; All <?php echo count($gitems); ?> items are mapped.</div>
                 <?php endif; ?>
+                <form method="post" id="automapForm" style="display:none;">
+                    <input type="hidden" name="action" value="automap">
+                    <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
+                </form>
                 <form method="post" id="mappingForm">
                     <input type="hidden" name="action" value="savemapping">
                     <input type="hidden" name="sesskey" value="<?php echo sesskey(); ?>">
 
-                    <div class="gs-bulk-tools form-inline mb-2">
+                    <div class="gs-bulk-tools form-inline mb-2 d-flex flex-wrap align-items-center">
                         <span class="mr-2 me-2 text-muted small">Quick fill:</span>
                         <select id="bulkCat" class="form-control form-control-sm mr-1 me-1" aria-label="Category for all unmapped items">
                             <option value="">Category for unmapped items&hellip;</option>
@@ -777,10 +795,10 @@ echo '<div class="local-gradesheet-page">';
                                 <option value="<?php echo $cat->id; ?>"><?php echo s($cat->name); ?></option>
                             <?php endforeach; ?>
                         </select>
-                        <button type="button" class="btn btn-outline-secondary btn-sm mr-3 me-3" onclick="gsBulkCategory()">Apply to unmapped</button>
+                        <button type="button" class="btn btn-outline-secondary btn-sm mr-2 me-2" onclick="gsBulkCategory()">Apply to unmapped</button>
                         <button type="button" class="btn btn-outline-secondary btn-sm mr-1 me-1" onclick="gsBulkPeriod('midterm')">All &rarr; Midterm</button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="gsBulkPeriod('finals')">All &rarr; Finals</button>
-                        <span class="ml-2 ms-2 text-muted small">(then press Save Mapping)</span>
+                        <button type="button" class="btn btn-outline-secondary btn-sm mr-3 me-3" onclick="gsBulkPeriod('finals')">All &rarr; Finals</button>
+                        <button type="submit" form="automapForm" class="btn btn-sm btn-outline-primary ml-auto ms-auto" title="Automatically classifies quizzes, assignments, and exams based on activity type and title">&#9889; Auto-Detect &amp; Map Items</button>
                     </div>
 
                     <table class="table table-bordered table-sm gs-mapping-table">
@@ -825,7 +843,7 @@ echo '<div class="local-gradesheet-page">';
                         </tbody>
                     </table>
                     <button type="submit" class="btn btn-primary">Save Mapping</button>
-                    <span class="text-muted small ml-2 ms-2">New activities you add to the course later show up here unmapped; come back and map them.</span>
+                    <span class="text-muted small ml-2 ms-2">Activities and quizzes you create in your course are automatically classified and mapped. You can review or adjust their mappings above at any time.</span>
                 </form>
             <?php endif; ?>
             <div class="gs-step-next text-right">

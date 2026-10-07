@@ -34,6 +34,7 @@ if ($courseid > 0) {
     require_login($course_obj);
     $context = context_course::instance($courseid);
     helper::ensure_course_defaults($courseid);
+    helper::auto_map_unmapped_items($courseid);
 }
 
 //set the url for the PAGE global, moodle requires this
