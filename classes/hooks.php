@@ -16,17 +16,28 @@ class hooks {
      */
     private static function get_distinct_options(string $fieldname): array {
         global $DB;
-        $allowed = ['department_head', 'registrar', 'college_dean', 'instructor'];
-        if (!in_array($fieldname, $allowed, true)) {
+        $allowed = [
+            'department_head' => 'department_head',
+            'registrar'       => 'registrar',
+            'college_dean'    => 'college_dean',
+            'instructor'      => 'instructor',
+        ];
+        if (!isset($allowed[$fieldname])) {
             return [];
         }
+        $field = $allowed[$fieldname];
         $options = [];
         try {
-            $records = $DB->get_fieldset_sql(
-                "SELECT DISTINCT {$fieldname} FROM {local_gradesheet_config} WHERE {$fieldname} IS NOT NULL AND {$fieldname} != '' ORDER BY {$fieldname} ASC"
+            $records = $DB->get_fieldset_select(
+                'local_gradesheet_config',
+                $field,
+                "{$field} IS NOT NULL AND {$field} != ''",
+                [],
+                "{$field} ASC"
             );
+            $records = array_unique($records);
             foreach ($records as $val) {
-                $v = trim($val);
+                $v = trim((string)$val);
                 if (!empty($v)) {
                     $options[$v] = $v;
                 }

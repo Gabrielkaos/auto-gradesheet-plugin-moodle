@@ -360,6 +360,16 @@ class MockDB {
         return $r ? ($r->$return ?? false) : false;
     }
 
+    public function get_fieldset_select(string $table, string $return, string $select = '', array $params = [], string $sort = ''): array {
+        $vals = [];
+        foreach ($this->tables[$table] ?? [] as $row) {
+            if (!empty($row->$return)) {
+                $vals[] = $row->$return;
+            }
+        }
+        return array_values(array_unique($vals));
+    }
+
     public function get_fieldset_sql(string $sql, ?array $params = null): array {
         if (preg_match('/SELECT DISTINCT\s+([a-zA-Z0-9_]+)\s+FROM\s+\{local_gradesheet_config\}/', $sql, $matches)) {
             $col = $matches[1];

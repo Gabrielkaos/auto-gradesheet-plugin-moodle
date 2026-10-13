@@ -18,4 +18,20 @@ $observers = [
         'eventname' => '\core\event\user_deleted',
         'callback'  => '\local_gradesheet\observer::user_deleted',
     ],
+    [
+        'eventname' => '\core\event\grade_item_created',
+        'callback'  => '\local_gradesheet\observer::grade_item_created',
+    ],
+    [
+        'eventname' => '\core\event\grade_item_updated',
+        'callback'  => '\local_gradesheet\observer::grade_item_updated',
+    ],
+    [
+        'eventname' => '\core\event\course_module_created',
+        'callback'  => '\local_gradesheet\observer::course_module_created',
+    ],
+    [
+        'eventname' => '\core\event\course_module_updated',
+        'callback'  => '\local_gradesheet\observer::course_module_updated',
+    ],
 ];

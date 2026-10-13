@@ -3,6 +3,14 @@ namespace local_gradesheet;
 
 defined('MOODLE_INTERNAL') || die();
 
+global $CFG;
+if (!empty($CFG->libdir) && file_exists($CFG->libdir . '/gradelib.php')) {
+    require_once($CFG->libdir . '/gradelib.php');
+}
+if (!empty($CFG->libdir) && file_exists($CFG->libdir . '/grade/grade_item.php')) {
+    require_once($CFG->libdir . '/grade/grade_item.php');
+}
+
 class helper {
 
     /** Valid faculty-settable statuses. '' means active/normal. */
@@ -144,6 +152,7 @@ class helper {
                 ];
                 $DB->insert_record('local_gradesheet_categories', $catrecord);
             }
+            self::auto_map_unmapped_items($courseid);
         }
 
         return $config;
@@ -1434,5 +1443,179 @@ class helper {
             $html .= '</form>';
         }
         return $html;
+    }
+
+    /**
+     * Automatically maps a grade item to an appropriate category and period based on its module type and title.
+     *
+     * @param int $courseid
+     * @param object $gitem grade_item instance or database record
+     * @param bool $force If true, overwrites existing mapping. If false, preserves existing valid mapping.
+     * @return bool True if mapped, false otherwise.
+     */
+    public static function auto_map_grade_item(int $courseid, $gitem, bool $force = false): bool {
+        global $DB;
+
+        if (empty($gitem) || empty($gitem->id)) {
+            return false;
+        }
+        if (!empty($gitem->courseid)) {
+            $courseid = (int)$gitem->courseid;
+        }
+
+        // Ignore course total items and non-numeric grade items.
+        if (isset($gitem->itemtype) && $gitem->itemtype === 'course') {
+            return false;
+        }
+        if (isset($gitem->gradetype) && (int)$gitem->gradetype !== 1) { // 1 = GRADE_TYPE_VALUE
+            return false;
+        }
+
+        $categories = $DB->get_records('local_gradesheet_categories', ['courseid' => $courseid], 'sortorder ASC');
+        if (empty($categories)) {
+            return false;
+        }
+
+        $existing = $DB->get_record('local_gradesheet_itemmap', [
+            'courseid' => $courseid,
+            'gradeitemid' => $gitem->id,
+        ]);
+
+        // If already mapped to an existing valid category and not forcing overwrite, keep it.
+        if ($existing && !empty($existing->categoryid) && isset($categories[$existing->categoryid]) && !$force) {
+            return false;
+        }
+
+        $name = strtolower(trim((string)($gitem->itemname ?? '')));
+        $mod  = strtolower(trim((string)($gitem->itemmodule ?? '')));
+
+        // 1. Determine period (Midterm vs Finals)
+        $period = null;
+        if (preg_match('/\b(midterm|prelim|prelims|1st\s*period|first\s*period|1st\s*half|part\s*1)\b/i', $name)) {
+            $period = 'midterm';
+        } else if (preg_match('/\b(final|finals|semi[- ]?final|semifinal|2nd\s*period|second\s*period|2nd\s*half|part\s*2)\b/i', $name)) {
+            $period = 'finals';
+        }
+
+        if ($period === null) {
+            // Check balance of existing mappings in course to avoid empty midterm
+            $midcount = 0;
+            $fincount = 0;
+            if (method_exists($DB, 'count_records')) {
+                $midcount = $DB->count_records('local_gradesheet_itemmap', ['courseid' => $courseid, 'period' => 'midterm']);
+                $fincount = $DB->count_records('local_gradesheet_itemmap', ['courseid' => $courseid, 'period' => 'finals']);
+            }
+            $period = ($midcount <= $fincount) ? 'midterm' : 'finals';
+        }
+
+        // 2. Identify target category
+        $matched_cat_id = 0;
+
+        $is_exam = preg_match('/\b(exam|examination|periodical|major\s*exam|quarterly|assessment)\b/i', $name);
+        $is_quiz = (!$is_exam && ($mod === 'quiz' || preg_match('/\b(quiz|quizzes|seatwork|test|drill|written)\b/i', $name)));
+        $is_act  = (!$is_exam && !$is_quiz && ($mod === 'assign' || $mod === 'workshop' || $mod === 'h5pactivity' || $mod === 'lesson' || $mod === 'scorm' || preg_match('/\b(activity|activities|lab|laboratory|project|exercise|assignment|assign|task|problem\s*set|seatwork|homework|hw|case\s*study|performance)\b/i', $name)));
+
+        $find_cat = function(string $regex) use ($categories): int {
+            foreach ($categories as $cat) {
+                if (preg_match($regex, strtolower($cat->name))) {
+                    return (int)$cat->id;
+                }
+            }
+            return 0;
+        };
+
+        if ($is_exam) {
+            $matched_cat_id = $find_cat('/(exam|major|periodical|quarterly|assessment)/i');
+        } else if ($is_quiz) {
+            $matched_cat_id = $find_cat('/(quiz|test|written)/i');
+            if (!$matched_cat_id) {
+                $matched_cat_id = $find_cat('/(act|assign|lab|task|work|performance|exam)/i');
+            }
+        } else if ($is_act) {
+            $matched_cat_id = $find_cat('/(act|lab|assign|project|task|problem|work|performance|exercise)/i');
+        }
+
+        // Fallback: substring match against defined category names.
+        if (!$matched_cat_id) {
+            foreach ($categories as $cat) {
+                $cname = strtolower(trim($cat->name));
+                if (strpos($name, $cname) !== false || strpos($cname, $name) !== false) {
+                    $matched_cat_id = (int)$cat->id;
+                    break;
+                }
+            }
+        }
+
+        // Fallback for module types if no specialized name matched.
+        if (!$matched_cat_id) {
+            if ($mod === 'quiz') {
+                $matched_cat_id = $find_cat('/(quiz|test|written|exam|act)/i');
+            } else if ($mod === 'assign' || $mod === 'workshop' || $mod === 'h5pactivity') {
+                $matched_cat_id = $find_cat('/(act|assign|lab|task|work|performance|proj)/i');
+            }
+        }
+
+        // Default fallback: first available category in the course if still unmatched.
+        if (!$matched_cat_id) {
+            $first = reset($categories);
+            $matched_cat_id = $first ? (int)$first->id : 0;
+        }
+
+        if (!$matched_cat_id) {
+            return false;
+        }
+
+        if ($existing) {
+            $existing->categoryid = $matched_cat_id;
+            $existing->period = $period;
+            $DB->update_record('local_gradesheet_itemmap', $existing);
+        } else {
+            $DB->insert_record('local_gradesheet_itemmap', (object)[
+                'courseid'    => $courseid,
+                'gradeitemid' => $gitem->id,
+                'categoryid'  => $matched_cat_id,
+                'period'      => $period,
+            ]);
+        }
+
+        return true;
+    }
+
+    /**
+     * Auto-maps all unmapped or unassigned numeric grade items in a course.
+     *
+     * @param int $courseid
+     * @return int Number of items mapped.
+     */
+    public static function auto_map_unmapped_items(int $courseid): int {
+        global $DB;
+        $categories = $DB->get_records('local_gradesheet_categories', ['courseid' => $courseid], '', 'id');
+        if (empty($categories)) {
+            return 0;
+        }
+
+        $gitems = $DB->get_records_select('grade_items',
+            'courseid = ? AND itemtype != ? AND itemname IS NOT NULL AND gradetype = 1',
+            [$courseid, 'course']
+        );
+        if (empty($gitems)) {
+            return 0;
+        }
+
+        $mapped_count = 0;
+        foreach ($gitems as $gi) {
+            $existing = $DB->get_record('local_gradesheet_itemmap', ['courseid' => $courseid, 'gradeitemid' => $gi->id]);
+            if (!$existing || empty($existing->categoryid) || !isset($categories[$existing->categoryid])) {
+                if (self::auto_map_grade_item($courseid, $gi, false)) {
+                    $mapped_count++;
+                }
+            }
+        }
+
+        if ($mapped_count > 0) {
+            self::reset_caches();
+        }
+
+        return $mapped_count;
     }
 }
