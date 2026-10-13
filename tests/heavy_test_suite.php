@@ -66,6 +66,11 @@ function set_role_contextlevels($roleid, array $contextlevels) {
     global $MOCK_ROLE_CONTEXTLEVELS;
     $MOCK_ROLE_CONTEXTLEVELS[$roleid] = $contextlevels;
 }
+function delete_role($roleid) {
+    global $DB;
+    $DB->delete_records('role_assignments', ['roleid' => $roleid]);
+    return $DB->delete_records('role', ['id' => $roleid]);
+}
 require_once __DIR__ . '/mock_core_events.php';
 
 // Global Moodle helpers
@@ -1030,9 +1035,13 @@ $DB->insert_record('local_gradesheet_config', (object)[
 $MOCK_COURSE_PARENTS[$courseid_sig] = [new mock_context(9001, 'BSCS Program'), new mock_context(9002, 'CCS'), new mock_context(1, 'System')];
 $DB->insert_record('local_gradesheet_categories', (object)['courseid' => $courseid_sig, 'name' => 'All', 'weight' => 100.0, 'sortorder' => 0]);
 
-$r_dh  = $DB->insert_record('role', (object)['shortname' => 'departmenthead', 'name' => 'Department Head']);
-$r_reg = $DB->insert_record('role', (object)['shortname' => 'registrar',      'name' => 'Registrar']);
-$r_dn  = $DB->insert_record('role', (object)['shortname' => 'collegedean',    'name' => 'College Dean']);
+// Roles as the college's site already has them (not the plugin's own names).
+$r_dh  = $DB->insert_record('role', (object)['shortname' => 'program_head', 'name' => 'Program Head']);
+$r_reg = $DB->insert_record('role', (object)['shortname' => 'registrar',    'name' => 'Registrar']);
+$r_dn  = $DB->insert_record('role', (object)['shortname' => 'ccsdean',      'name' => 'Dean']);
+$T->assertEqual("Role resolution: existing 'Program Head' / 'Dean' roles are matched by name",
+    [helper::signatory_role_shortname('department_head'), helper::signatory_role_shortname('college_dean'), helper::signatory_role_shortname('registrar')],
+    ['program_head', 'ccsdean', 'registrar']);
 
 foreach ([
     901 => ['Teodoro', 'Cruz'],      // editing teacher (only one)
@@ -1101,6 +1110,11 @@ $DB->delete_records('role', ['id' => $r_reg]);
 $det = helper::detect_signatories($courseid_sig);
 $T->assertEqual("Detect: missing role -> blank name", $det['registrar']['name'], '');
 $T->assert("Detect: missing role -> explanatory source", strpos($det['registrar']['source'], 'does not exist') !== false);
+$T->assert("Detect: missing role -> names what it looked for", strpos($det['registrar']['source'], 'Registrar') !== false);
+$MOCK_CONFIG = ['local_gradesheet' => ['role_registrar' => 'univreg']];
+$det = helper::detect_signatories($courseid_sig);
+$T->assert("Detect: chosen-but-missing role -> says it was chosen in settings", strpos($det['registrar']['source'], 'chosen in the plugin settings') !== false);
+$MOCK_CONFIG = [];
 
 // =========================================================================
 echo "\n======================================================================\n";

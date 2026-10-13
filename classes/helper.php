@@ -394,15 +394,71 @@ class helper {
 
     /** Signatory key => [config column, admin-setting name, default role shortname, role display name]. */
     public static function signatory_roles(): array {
+        // key => [config column, admin setting, fallback shortname, label, aliases, aliases as text]
+        // Aliases are matched (case-insensitively, ignoring spaces/punctuation)
+        // against the shortname and name of every role on the site, in order,
+        // so a college that already has a "Dean" or "Program Head" role is
+        // picked up without creating duplicate roles.
         return [
-            'instructor'      => ['instructor',      'role_instructor',     'editingteacher', 'Instructor'],
-            'department_head' => ['department_head', 'role_departmenthead', 'departmenthead', 'Department Head'],
-            'registrar'       => ['registrar',       'role_registrar',      'registrar',      'Registrar'],
-            'college_dean'    => ['college_dean',    'role_collegedean',    'collegedean',    'College Dean'],
+            'instructor'      => ['instructor',      'role_instructor',     'editingteacher', 'Instructor',      [], ''],
+            'department_head' => ['department_head', 'role_departmenthead', 'programhead',    'Department Head',
+                ['programhead', 'programchair', 'departmenthead', 'departmentchair', 'depthead', 'chairperson'],
+                'Program Head / Program Chair / Department Head / Department Chair / Chairperson'],
+            'registrar'       => ['registrar',       'role_registrar',      'registrar',      'Registrar',
+                ['registrar', 'universityregistrar', 'univregistrar', 'collegeregistrar'],
+                'Registrar / University Registrar'],
+            'college_dean'    => ['college_dean',    'role_collegedean',    'dean',           'College Dean',
+                ['dean', 'collegedean'],
+                'Dean / College Dean'],
         ];
     }
 
-    /** Role shortname configured for a signatory (admin setting, with default). */
+    /** Lower-case alphanumerics only, so "Program Head" == "programhead" == "program_head". */
+    private static function role_alias_key(string $s): string {
+        return preg_replace('/[^a-z0-9]/', '', strtolower($s));
+    }
+
+    /**
+     * Finds the first site role whose shortname or name matches one of the
+     * aliases (alias order = priority; shortname beats name within an alias).
+     *
+     * @return \stdClass|null Role record (id, shortname, name) or null.
+     */
+    public static function find_role_by_alias(array $aliases): ?\stdClass {
+        global $DB;
+        if (empty($aliases)) {
+            return null;
+        }
+        $roles = $DB->get_records('role', null, '', 'id, shortname, name');
+        if (empty($roles)) {
+            return null;
+        }
+        foreach ($aliases as $alias) {
+            $want = self::role_alias_key($alias);
+            if ($want === '') {
+                continue;
+            }
+            foreach ($roles as $r) {
+                if (self::role_alias_key((string)$r->shortname) === $want) {
+                    return $r;
+                }
+            }
+            foreach ($roles as $r) {
+                if (self::role_alias_key((string)$r->name) === $want) {
+                    return $r;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Role shortname used for a signatory. Precedence:
+     *   1. the admin setting, when one was chosen;
+     *   2. an existing site role matching the signatory's aliases
+     *      (e.g. the college's own "Dean" / "Program Head");
+     *   3. the fallback shortname (which may not exist on the site).
+     */
     public static function signatory_role_shortname(string $key): string {
         $def = self::signatory_roles()[$key] ?? null;
         if (!$def) {
@@ -413,35 +469,86 @@ class helper {
             $v = (string)get_config('local_gradesheet', $def[1]);
         }
         $v = trim($v);
-        return $v !== '' ? $v : $def[2];
+        if ($v !== '') {
+            return $v;
+        }
+        $match = self::find_role_by_alias($def[4]);
+        if ($match) {
+            return (string)$match->shortname;
+        }
+        return $def[2];
+    }
+
+    /** Role names a signatory matches automatically, for messages ("Dean / College Dean"). */
+    public static function signatory_role_aliases_label(string $key): string {
+        $def = self::signatory_roles()[$key] ?? null;
+        return $def ? (string)$def[5] : '';
     }
 
     /**
-     * Creates the Department Head / Registrar / College Dean roles if the site
-     * does not have them yet, assignable at category and system level. Called
-     * on install and upgrade so auto-detection works out of the box.
+     * Creates the Registrar role if the site has no role matching it yet,
+     * assignable at category and system level. Department Head and College
+     * Dean are NOT created: those are detected from the roles the institution
+     * already has (e.g. "Dean", "Program Head"), or chosen in the plugin
+     * settings. Called on install and upgrade.
      */
     public static function ensure_signatory_roles(): void {
         global $DB;
         if (!function_exists('create_role')) {
             return;
         }
-        $wanted = [
-            'departmenthead' => ['Department Head', 'Signs grade sheets as Department Head. Assign at the department/program category.'],
-            'collegedean'    => ['College Dean',    'Signs grade sheets as College Dean. Assign at the college category.'],
-            'registrar'      => ['Registrar',       'Signs grade sheets as University Registrar. Assign at the system level.'],
-        ];
-        foreach ($wanted as $shortname => [$name, $desc]) {
+        $def = self::signatory_roles()['registrar'];
+        try {
+            if (self::find_role_by_alias($def[4])) {
+                return;
+            }
+            $roleid = create_role('Registrar', 'registrar', 'Signs grade sheets as University Registrar. Assign at the system level.');
+            set_role_contextlevels($roleid, [CONTEXT_SYSTEM, CONTEXT_COURSECAT]);
+        } catch (\Throwable $e) {
+            debugging('local_gradesheet: could not create role registrar: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+    }
+
+    /**
+     * Removes the "Department Head" and "College Dean" roles that earlier
+     * plugin versions created, when it is safe: the role still carries the
+     * plugin's own description, nobody is assigned to it, and no signatory
+     * currently resolves to it. Returns the shortnames removed.
+     *
+     * @return string[]
+     */
+    public static function remove_unused_plugin_roles(): array {
+        global $DB;
+        $removed = [];
+        if (!function_exists('delete_role')) {
+            return $removed;
+        }
+        $inuse = [];
+        foreach (['department_head', 'registrar', 'college_dean'] as $key) {
+            $inuse[] = self::signatory_role_shortname($key);
+        }
+        foreach (['departmenthead', 'collegedean'] as $shortname) {
+            $role = $DB->get_record('role', ['shortname' => $shortname]);
+            if (!$role) {
+                continue;
+            }
+            if (strpos((string)$role->description, 'Signs grade sheets as') !== 0) {
+                continue;   // Not ours (or customised by the admin).
+            }
+            if (in_array($shortname, $inuse, true)) {
+                continue;   // The admin pointed a signatory at it.
+            }
+            if ($DB->count_records('role_assignments', ['roleid' => $role->id]) > 0) {
+                continue;
+            }
             try {
-                if ($DB->record_exists('role', ['shortname' => $shortname])) {
-                    continue;
-                }
-                $roleid = create_role($name, $shortname, $desc);
-                set_role_contextlevels($roleid, [CONTEXT_SYSTEM, CONTEXT_COURSECAT]);
+                delete_role($role->id);
+                $removed[] = $shortname;
             } catch (\Throwable $e) {
-                debugging('local_gradesheet: could not create role ' . $shortname . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+                debugging('local_gradesheet: could not delete role ' . $shortname . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
             }
         }
+        return $removed;
     }
 
     /** Display form of a signatory name: full name in CAPS. */
@@ -494,7 +601,13 @@ class helper {
             $shortname = self::signatory_role_shortname($key);
             $roleid = $DB->get_field('role', 'id', ['shortname' => $shortname]);
             if (!$roleid) {
-                $out[$key] = ['name' => '', 'source' => "role '" . $shortname . "' does not exist on this site"];
+                $chosen = function_exists('get_config') ? trim((string)get_config('local_gradesheet', self::signatory_roles()[$key][1])) : '';
+                if ($chosen !== '') {
+                    $src = "role '" . $shortname . "' chosen in the plugin settings does not exist on this site";
+                } else {
+                    $src = "no role named " . self::signatory_role_aliases_label($key) . " exists on this site (role '" . $shortname . "' does not exist); create one or choose a role in the plugin settings";
+                }
+                $out[$key] = ['name' => '', 'source' => $src];
                 continue;
             }
             $found = null;

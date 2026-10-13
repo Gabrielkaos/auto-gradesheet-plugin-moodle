@@ -23,13 +23,14 @@ $string['warnlastcategory']    = 'The last remaining grade category cannot be de
 
 // Admin settings: signatory auto-detection.
 $string['signatoryroles']          = 'Signatory auto-detection';
-$string['signatoryroles_desc']     = 'Grade sheets fill in the Instructor, Department Head, Registrar and College Dean lines automatically from Moodle role assignments when the course has not typed a name. The Instructor is the editing teacher of the course (or section). The other three are looked up by role, searching upward from the course through its categories to the site: assign the Department Head role at the department/program category, the College Dean role at the college category, and the Registrar role at the system level (Site administration > Users > Permissions > Assign system roles). The roles below are created by the plugin on install; change the shortnames here only if your site already uses different roles.';
+$string['signatoryroles_desc']     = 'Grade sheets fill in the Instructor, Department Head, Registrar and College Dean lines automatically from Moodle role assignments when the course has not typed a name. The Instructor is the editing teacher of the course (or section). The other three are looked up by role, searching upward from the course through its categories to the site: assign the department head role at the department/program category, the dean role at the college category, and the registrar role at the system level (Site administration > Users > Permissions > Assign system roles). With "Auto-detect" the plugin uses the roles your site already has, matched by name (Dean or College Dean; Program Head, Program Chair, Department Head or Chairperson; Registrar). Only a Registrar role is created on install, and only when the site has none. Pick a role below if your site names them differently.';
+$string['role_auto']               = 'Auto-detect from existing roles by name (recommended)';
 $string['role_departmenthead']     = 'Department Head role';
-$string['role_departmenthead_desc'] = 'Shortname of the role whose holder signs as Department Head.';
+$string['role_departmenthead_desc'] = 'Role whose holder signs as Department Head. Auto-detect matches a role named Program Head, Program Chair, Department Head, Department Chair or Chairperson.';
 $string['role_collegedean']        = 'College Dean role';
-$string['role_collegedean_desc']   = 'Shortname of the role whose holder signs as College Dean.';
+$string['role_collegedean_desc']   = 'Role whose holder signs as College Dean. Auto-detect matches a role named Dean or College Dean.';
 $string['role_registrar']          = 'Registrar role';
-$string['role_registrar_desc']     = 'Shortname of the role whose holder signs as Registrar.';
+$string['role_registrar_desc']     = 'Role whose holder signs as Registrar. Auto-detect matches a role named Registrar or University Registrar.';
 
 // Privacy API.
 $string['privacy:metadata:status']              = 'Faculty-set academic status overrides (Incomplete, Dropped, Withdrawn, In Progress) per student per course.';

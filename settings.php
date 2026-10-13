@@ -12,22 +12,26 @@ if ($hassiteconfig) {
         get_string('signatoryroles_desc', 'local_gradesheet')
     ));
 
-    $settings->add(new admin_setting_configtext(
-        'local_gradesheet/role_departmenthead',
-        get_string('role_departmenthead', 'local_gradesheet'),
-        get_string('role_departmenthead_desc', 'local_gradesheet'),
-        'departmenthead', PARAM_ALPHANUMEXT
-    ));
-    $settings->add(new admin_setting_configtext(
-        'local_gradesheet/role_collegedean',
-        get_string('role_collegedean', 'local_gradesheet'),
-        get_string('role_collegedean_desc', 'local_gradesheet'),
-        'collegedean', PARAM_ALPHANUMEXT
-    ));
-    $settings->add(new admin_setting_configtext(
-        'local_gradesheet/role_registrar',
-        get_string('role_registrar', 'local_gradesheet'),
-        get_string('role_registrar_desc', 'local_gradesheet'),
-        'registrar', PARAM_ALPHANUMEXT
-    ));
+    // Every role on the site, keyed by shortname, plus "auto" (match by name).
+    $rolechoices = ['' => get_string('role_auto', 'local_gradesheet')];
+    if (function_exists('get_all_roles')) {
+        $allroles = get_all_roles();
+        if (function_exists('role_fix_names')) {
+            $allroles = role_fix_names($allroles, null, ROLENAME_ORIGINAL);
+        }
+        foreach ($allroles as $r) {
+            $label = isset($r->localname) && $r->localname !== '' ? $r->localname : ($r->name !== '' ? $r->name : $r->shortname);
+            $rolechoices[$r->shortname] = $label . ' (' . $r->shortname . ')';
+        }
+    }
+
+    foreach (['departmenthead', 'collegedean', 'registrar'] as $sig) {
+        $settings->add(new admin_setting_configselect(
+            'local_gradesheet/role_' . $sig,
+            get_string('role_' . $sig, 'local_gradesheet'),
+            get_string('role_' . $sig . '_desc', 'local_gradesheet'),
+            '',
+            $rolechoices
+        ));
+    }
 }

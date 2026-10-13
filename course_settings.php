@@ -1188,8 +1188,8 @@ echo '<div class="local-gradesheet-page">';
                 <hr><h6 class="text-muted mb-1">- Signatories -</h6>
                 <p class="text-muted small mb-3">
                     Leave a field <strong>blank</strong> to use the name auto-detected from Moodle roles
-                    (Instructor = the course/section teacher; the others = holders of the Department Head,
-                    Registrar and College Dean roles in this course's category tree or the site).
+                    (Instructor = the course/section teacher; the others = holders of the site's
+                    Program Head / Department Head, Registrar and Dean roles in this course's category tree or the site).
                     Type a name only to override.
                 </p>
 

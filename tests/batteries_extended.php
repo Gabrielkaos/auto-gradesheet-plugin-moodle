@@ -650,24 +650,72 @@ observer::user_deleted(new \core\event\user_deleted(1799));
 $T->assertEqual("user_deleted observer removes that user's status rows in every course", $DB->count_records('local_gradesheet_status', ['userid' => 1799]), 0);
 
 // 18d. Signatory role bootstrap and settings.
-$DB->delete_records('role', ['shortname' => 'departmenthead']);
-$DB->delete_records('role', ['shortname' => 'collegedean']);
-$DB->delete_records('role', ['shortname' => 'registrar']);
+// Empty site: only Registrar is created; Dean / Department Head never are.
+$DB->tables['role'] = [];
+$DB->tables['role_assignments'] = [];
 $MOCK_ROLE_CONTEXTLEVELS = [];
 helper::ensure_signatory_roles();
-$created = array_filter($DB->tables['role'], function ($r) { return in_array($r->shortname, ['departmenthead', 'collegedean', 'registrar'], true); });
-$T->assertEqual("ensure_signatory_roles creates the three roles", count($created), 3);
-$T->assert("Each created role is assignable at system and category level", (function () use ($created, $MOCK_ROLE_CONTEXTLEVELS) {
-    foreach ($created as $r) { if (($MOCK_ROLE_CONTEXTLEVELS[$r->id] ?? null) !== [CONTEXT_SYSTEM, CONTEXT_COURSECAT]) { return false; } }
-    return true;
-})());
+$T->assertEqual("ensure_signatory_roles creates only the Registrar role", array_values(array_map(function ($r) { return $r->shortname; }, $DB->tables['role'])), ['registrar']);
+$reg = reset($DB->tables['role']);
+$T->assertEqual("Registrar role is assignable at system and category level", $MOCK_ROLE_CONTEXTLEVELS[$reg->id] ?? null, [CONTEXT_SYSTEM, CONTEXT_COURSECAT]);
 helper::ensure_signatory_roles();
-$T->assertEqual("ensure_signatory_roles is idempotent", count(array_filter($DB->tables['role'], function ($r) { return $r->shortname === 'registrar'; })), 1);
-$T->assertEqual("Role shortnames default", [helper::signatory_role_shortname('registrar'), helper::signatory_role_shortname('college_dean'), helper::signatory_role_shortname('department_head'), helper::signatory_role_shortname('instructor')], ['registrar', 'collegedean', 'departmenthead', 'editingteacher']);
+$T->assertEqual("ensure_signatory_roles is idempotent", count($DB->tables['role']), 1);
+$T->assertEqual("Fallback shortnames when the site has no matching role", [helper::signatory_role_shortname('registrar'), helper::signatory_role_shortname('college_dean'), helper::signatory_role_shortname('department_head'), helper::signatory_role_shortname('instructor')], ['registrar', 'dean', 'programhead', 'editingteacher']);
 $MOCK_CONFIG = ['local_gradesheet' => ['role_registrar' => 'univregistrar']];
 $T->assertEqual("Admin setting overrides a role shortname", helper::signatory_role_shortname('registrar'), 'univregistrar');
 $T->assertEqual("Unknown signatory key -> empty shortname", helper::signatory_role_shortname('janitor'), '');
 $MOCK_CONFIG = [];
+
+// Site that already has a "University Registrar": nothing is created.
+$DB->tables['role'] = [];
+$DB->insert_record('role', (object)['shortname' => 'ureg', 'name' => 'University Registrar', 'description' => '']);
+helper::ensure_signatory_roles();
+$T->assertEqual("Existing 'University Registrar' role prevents creating a duplicate", count($DB->tables['role']), 1);
+$T->assertEqual("Existing registrar role is resolved by name", helper::signatory_role_shortname('registrar'), 'ureg');
+
+// Name matching: case, spaces and underscores are ignored; shortname beats name; alias order is priority.
+$DB->tables['role'] = [];
+$DB->insert_record('role', (object)['shortname' => 'collegedean', 'name' => 'College Dean', 'description' => 'Signs grade sheets as College Dean. Assign at the college category.']);
+$DB->insert_record('role', (object)['shortname' => 'r_dean',      'name' => ' DEAN ',        'description' => '']);
+$DB->insert_record('role', (object)['shortname' => 'dept_head',   'name' => 'Department_Head', 'description' => '']);
+$DB->insert_record('role', (object)['shortname' => 'ph',          'name' => 'Program Head',  'description' => '']);
+$T->assertEqual("Site 'Dean' wins over the plugin's old 'collegedean' (alias priority)", helper::signatory_role_shortname('college_dean'), 'r_dean');
+$T->assertEqual("'Program Head' wins over 'Department Head' (alias priority)", helper::signatory_role_shortname('department_head'), 'ph');
+$DB->delete_records('role', ['shortname' => 'ph']);
+$T->assertEqual("'Department_Head' matched ignoring punctuation and case", helper::signatory_role_shortname('department_head'), 'dept_head');
+$T->assertEqual("find_role_by_alias with no aliases -> null", helper::find_role_by_alias([]), null);
+
+// Upgrade cleanup: plugin-created Dean / Department Head roles are removed only when safe.
+$DB->tables['role'] = [];
+$DB->tables['role_assignments'] = [];
+$old_dh = $DB->insert_record('role', (object)['shortname' => 'departmenthead', 'name' => 'Department Head', 'description' => 'Signs grade sheets as Department Head. Assign at the department/program category.']);
+$old_cd = $DB->insert_record('role', (object)['shortname' => 'collegedean',    'name' => 'College Dean',    'description' => 'Signs grade sheets as College Dean. Assign at the college category.']);
+$DB->insert_record('role', (object)['shortname' => 'dean', 'name' => 'Dean', 'description' => '']);
+$DB->insert_record('role', (object)['shortname' => 'programhead', 'name' => 'Program Head', 'description' => '']);
+$T->assertEqual("Cleanup removes both unused plugin roles when the site has its own Dean / Program Head", helper::remove_unused_plugin_roles(), ['departmenthead', 'collegedean']);
+$T->assertEqual("Cleanup leaves the site's own roles alone", count($DB->tables['role']), 2);
+
+$DB->tables['role'] = [];
+$old_dh = $DB->insert_record('role', (object)['shortname' => 'departmenthead', 'name' => 'Department Head', 'description' => 'Signs grade sheets as Department Head. Assign at the department/program category.']);
+$old_cd = $DB->insert_record('role', (object)['shortname' => 'collegedean',    'name' => 'College Dean',    'description' => 'Signs grade sheets as College Dean. Assign at the college category.']);
+$DB->insert_record('role', (object)['shortname' => 'dean', 'name' => 'Dean', 'description' => '']);
+$DB->insert_record('role', (object)['shortname' => 'programhead', 'name' => 'Program Head', 'description' => '']);
+$DB->insert_record('role_assignments', (object)['roleid' => $old_cd, 'userid' => 5, 'contextid' => 1]);
+$T->assertEqual("Cleanup keeps a plugin role that someone is assigned to", helper::remove_unused_plugin_roles(), ['departmenthead']);
+$T->assertEqual("...and that role still exists", $DB->record_exists('role', ['shortname' => 'collegedean']), true);
+
+$DB->tables['role'] = [];
+$DB->tables['role_assignments'] = [];
+$DB->insert_record('role', (object)['shortname' => 'departmenthead', 'name' => 'Department Head', 'description' => 'Renamed by the admin for something else']);
+$T->assertEqual("Cleanup keeps a role whose description the admin changed", helper::remove_unused_plugin_roles(), []);
+
+$DB->tables['role'] = [];
+$DB->insert_record('role', (object)['shortname' => 'collegedean', 'name' => 'College Dean', 'description' => 'Signs grade sheets as College Dean. Assign at the college category.']);
+$MOCK_CONFIG = ['local_gradesheet' => ['role_collegedean' => 'collegedean']];
+$T->assertEqual("Cleanup keeps a plugin role the admin explicitly chose in settings", helper::remove_unused_plugin_roles(), []);
+$MOCK_CONFIG = [];
+$T->assertEqual("Without an explicit setting, the only Dean-like role on the site is still resolved (so it is NOT removed either)", helper::signatory_role_shortname('college_dean'), 'collegedean');
+$T->assertEqual("Cleanup keeps 'collegedean' when it is the only dean role the site has", helper::remove_unused_plugin_roles(), []);
 $T->assertEqual("signatory_is_blank: empty, whitespace and legacy placeholders (any case)",
     [helper::signatory_is_blank(''), helper::signatory_is_blank('   '), helper::signatory_is_blank('department head'), helper::signatory_is_blank('Instructor Name'), helper::signatory_is_blank('Juan Dela Cruz')],
     [true, true, true, true, false]);
