@@ -128,6 +128,11 @@ function get_config($plugin, $name = null) {
     global $MOCK_CONFIG;
     return $MOCK_CONFIG[$plugin][$name] ?? '';
 }
+function set_config($name, $value, $plugin = null) {
+    global $MOCK_CONFIG;
+    $MOCK_CONFIG[$plugin ?? 'core'][$name] = $value;
+    return true;
+}
 
 #[\AllowDynamicProperties]
 class grade_item {

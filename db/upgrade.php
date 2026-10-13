@@ -222,5 +222,13 @@ function xmldb_local_gradesheet_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026101300, 'local', 'gradesheet');
     }
 
+    if ($oldversion < 2026101301) {
+        // The pre-1.12 text settings persisted their defaults (departmenthead,
+        // collegedean, registrar) into config, which overrides auto-detection
+        // and points at roles 2026101300 may have removed. Reset them to auto.
+        \local_gradesheet\helper::clear_legacy_role_settings();
+        upgrade_plugin_savepoint(true, 2026101301, 'local', 'gradesheet');
+    }
+
     return true;
 }
