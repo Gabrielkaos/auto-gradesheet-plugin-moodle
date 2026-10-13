@@ -31,7 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require_sesskey();
     $action = optional_param('action', '', PARAM_ALPHA);
 
-    $urlfor = function (string $anchor = ''): moodle_url {
+    $urlfor = function (string $anchor = '') use ($courseid): moodle_url {
         return new moodle_url('/local/gradesheet/course_settings.php', ['courseid' => $courseid], $anchor ?: null);
     };
     $settingsurl = $urlfor();
