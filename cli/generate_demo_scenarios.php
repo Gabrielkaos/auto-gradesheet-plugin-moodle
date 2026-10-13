@@ -208,13 +208,21 @@ cli_writeln('Category: ' . DEMO_CATEGORY . " (id {$category->id})");
 helper::ensure_signatory_roles();
 $catctx = context_coursecat::instance($category->id);
 $sysctx = context_system::instance();
+// Use whatever role the site already has for each signatory (e.g. "Dean",
+// "Program Head"); create a demo role only when nothing matches.
 $sig = [
-    'departmenthead' => [$demo_user('dept_head', 'Marilou', 'Villamor', 'DH-001'), $catctx, 'Department Head'],
-    'collegedean'    => [$demo_user('dean',      'Rogelio', 'Sabornido', 'DEAN-001'), $catctx, 'College Dean'],
-    'registrar'      => [$demo_user('registrar', 'Josefina', 'Lacaba', 'REG-001'), $sysctx, 'Registrar'],
+    'department_head' => [$demo_user('dept_head', 'Marilou', 'Villamor', 'DH-001'), $catctx, 'Department Head', 'programhead', 'Program Head'],
+    'college_dean'    => [$demo_user('dean',      'Rogelio', 'Sabornido', 'DEAN-001'), $catctx, 'College Dean', 'dean', 'Dean'],
+    'registrar'       => [$demo_user('registrar', 'Josefina', 'Lacaba', 'REG-001'), $sysctx, 'Registrar', 'registrar', 'Registrar'],
 ];
-foreach ($sig as $shortname => [$uid, $ctx, $label]) {
+foreach ($sig as $key => [$uid, $ctx, $label, $fallbackshort, $fallbackname]) {
+    $shortname = helper::signatory_role_shortname($key);
     $roleid = $DB->get_field('role', 'id', ['shortname' => $shortname]);
+    if (!$roleid) {
+        $shortname = $fallbackshort;
+        $roleid = create_role($fallbackname, $shortname, 'Demo role created by local_gradesheet generate_demo_scenarios.php');
+        set_role_contextlevels($roleid, [CONTEXT_SYSTEM, CONTEXT_COURSECAT]);
+    }
     if ($roleid && !$DB->record_exists('role_assignments', ['roleid' => $roleid, 'userid' => $uid, 'contextid' => $ctx->id])) {
         role_assign($roleid, $uid, $ctx->id);
     }

@@ -86,7 +86,7 @@ A Moodle **group** is a section. When a course has groups, the dashboard shows a
 ## Configuration
 
 - Course-level settings: `course_settings.php` (all versions) or the Moodle course edit form (Moodle 4.4+ only; `\core_course\hook\after_form_definition` does not exist in 4.3, so on 4.3 the "Gradesheet Configuration" section simply does not appear in the course form — nothing else is affected).
-- Signatory roles (`departmenthead`, `collegedean`, `registrar`) are created on install/upgrade; assign them at the category or system level for auto-detection.
+- Signatories are auto-detected from the roles the site already has, matched by name: a role named Dean or College Dean (assign at the college category), one named Program Head, Program Chair, Department Head or Chairperson (assign at the department/program category), and Registrar (assign at the system level). Only a Registrar role is created on install, and only if none exists. Site administration → Plugins → Local plugins → Grade Sheet Generator lets you pick a different role for each line.
 - Default categories and config are auto-created on course creation.
 - Language strings can be adjusted via `lang/en/local_gradesheet.php`.
 

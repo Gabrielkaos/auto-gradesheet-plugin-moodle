@@ -212,5 +212,15 @@ function xmldb_local_gradesheet_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026100400, 'local', 'gradesheet');
     }
 
+    if ($oldversion < 2026101300) {
+        // Signatories now use the roles the institution already has (e.g.
+        // "Dean", "Program Head"). Drop the plugin-created Department Head and
+        // College Dean roles when nobody holds them and no setting points at
+        // them; keep (or create) Registrar.
+        \local_gradesheet\helper::ensure_signatory_roles();
+        \local_gradesheet\helper::remove_unused_plugin_roles();
+        upgrade_plugin_savepoint(true, 2026101300, 'local', 'gradesheet');
+    }
+
     return true;
 }
