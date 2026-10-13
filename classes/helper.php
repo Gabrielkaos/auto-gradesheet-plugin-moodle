@@ -469,6 +469,9 @@ class helper {
             $v = (string)get_config('local_gradesheet', $def[1]);
         }
         $v = trim($v);
+        if ($v !== '' && self::is_stale_legacy_role_setting($v)) {
+            $v = '';   // Old free-text default pointing at a role that no longer exists: treat as auto.
+        }
         if ($v !== '') {
             return $v;
         }
@@ -477,6 +480,44 @@ class helper {
             return (string)$match->shortname;
         }
         return $def[2];
+    }
+
+    /** Shortnames the pre-1.12 text settings defaulted to (and persisted into config). */
+    public static function legacy_role_defaults(): array {
+        return ['departmenthead', 'collegedean', 'registrar'];
+    }
+
+    /** True when a saved setting is one of the old defaults and no such role exists any more. */
+    public static function is_stale_legacy_role_setting(string $shortname): bool {
+        global $DB;
+        if (!in_array($shortname, self::legacy_role_defaults(), true)) {
+            return false;
+        }
+        return !$DB->record_exists('role', ['shortname' => $shortname]);
+    }
+
+    /**
+     * Clears saved role settings that still hold a pre-1.12 default, so
+     * auto-detection by name takes over. Returns the settings cleared.
+     *
+     * @return string[]
+     */
+    public static function clear_legacy_role_settings(): array {
+        $cleared = [];
+        if (!function_exists('get_config') || !function_exists('set_config')) {
+            return $cleared;
+        }
+        foreach (self::signatory_roles() as $key => $def) {
+            if ($key === 'instructor') {
+                continue;
+            }
+            $v = trim((string)get_config('local_gradesheet', $def[1]));
+            if ($v !== '' && in_array($v, self::legacy_role_defaults(), true)) {
+                set_config($def[1], '', 'local_gradesheet');
+                $cleared[] = $def[1];
+            }
+        }
+        return $cleared;
     }
 
     /** Role names a signatory matches automatically, for messages ("Dean / College Dean"). */
@@ -602,7 +643,7 @@ class helper {
             $roleid = $DB->get_field('role', 'id', ['shortname' => $shortname]);
             if (!$roleid) {
                 $chosen = function_exists('get_config') ? trim((string)get_config('local_gradesheet', self::signatory_roles()[$key][1])) : '';
-                if ($chosen !== '') {
+                if ($chosen !== '' && !self::is_stale_legacy_role_setting($chosen)) {
                     $src = "role '" . $shortname . "' chosen in the plugin settings does not exist on this site";
                 } else {
                     $src = "no role named " . self::signatory_role_aliases_label($key) . " exists on this site (role '" . $shortname . "' does not exist); create one or choose a role in the plugin settings";

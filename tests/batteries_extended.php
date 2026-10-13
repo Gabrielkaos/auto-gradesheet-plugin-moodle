@@ -716,6 +716,23 @@ $T->assertEqual("Cleanup keeps a plugin role the admin explicitly chose in setti
 $MOCK_CONFIG = [];
 $T->assertEqual("Without an explicit setting, the only Dean-like role on the site is still resolved (so it is NOT removed either)", helper::signatory_role_shortname('college_dean'), 'collegedean');
 $T->assertEqual("Cleanup keeps 'collegedean' when it is the only dean role the site has", helper::remove_unused_plugin_roles(), []);
+
+// Stale pre-1.12 settings: the old text defaults were persisted into config.
+$DB->tables['role'] = [];
+$DB->insert_record('role', (object)['shortname' => 'dean', 'name' => 'Dean', 'description' => '']);
+$DB->insert_record('role', (object)['shortname' => 'programhead', 'name' => 'Program Head', 'description' => '']);
+$DB->insert_record('role', (object)['shortname' => 'registrar', 'name' => 'Registrar', 'description' => '']);
+$MOCK_CONFIG = ['local_gradesheet' => ['role_departmenthead' => 'departmenthead', 'role_collegedean' => 'collegedean', 'role_registrar' => 'registrar']];
+$T->assertEqual("Stale legacy setting (role gone) is ignored -> auto-detect finds the site's Dean", helper::signatory_role_shortname('college_dean'), 'dean');
+$T->assertEqual("Stale legacy setting (role gone) is ignored -> auto-detect finds Program Head", helper::signatory_role_shortname('department_head'), 'programhead');
+$T->assertEqual("Legacy 'registrar' setting whose role still exists is honoured", helper::signatory_role_shortname('registrar'), 'registrar');
+$T->assertEqual("Upgrade clears every legacy default from config", helper::clear_legacy_role_settings(), ['role_departmenthead', 'role_registrar', 'role_collegedean']);
+$T->assertEqual("...leaving the settings on auto", [get_config('local_gradesheet', 'role_departmenthead'), get_config('local_gradesheet', 'role_collegedean'), get_config('local_gradesheet', 'role_registrar')], ['', '', '']);
+$T->assertEqual("Upgrade clear is idempotent", helper::clear_legacy_role_settings(), []);
+$MOCK_CONFIG = ['local_gradesheet' => ['role_collegedean' => 'ccs_dean_custom']];
+$T->assertEqual("A deliberately chosen (non-legacy) shortname is never cleared", helper::clear_legacy_role_settings(), []);
+$T->assertEqual("...and still overrides auto-detect even if missing", helper::signatory_role_shortname('college_dean'), 'ccs_dean_custom');
+$MOCK_CONFIG = [];
 $T->assertEqual("signatory_is_blank: empty, whitespace and legacy placeholders (any case)",
     [helper::signatory_is_blank(''), helper::signatory_is_blank('   '), helper::signatory_is_blank('department head'), helper::signatory_is_blank('Instructor Name'), helper::signatory_is_blank('Juan Dela Cruz')],
     [true, true, true, true, false]);
