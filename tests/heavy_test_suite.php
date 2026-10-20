@@ -45,6 +45,10 @@ const CONTEXT_SYSTEM   = 10;
 const CONTEXT_COURSECAT = 40;
 const CONTEXT_COURSE   = 50;
 const DEBUG_DEVELOPER  = 32767;
+const CAP_INHERIT      = 0;
+const CAP_ALLOW        = 1;
+const CAP_PREVENT      = -1;
+const CAP_PROHIBIT     = -1000;
 
 // $CFG->libdir points at tests/stubs so helper's require_once of gradelib.php loads the stub.
 global $CFG;
@@ -70,6 +74,19 @@ function delete_role($roleid) {
     global $DB;
     $DB->delete_records('role_assignments', ['roleid' => $roleid]);
     return $DB->delete_records('role', ['id' => $roleid]);
+}
+function get_archetype_roles($archetype) {
+    global $DB;
+    return $DB->get_records('role', ['archetype' => $archetype]);
+}
+/** Mirrors core: a null $contextid removes the capability in every context. */
+function unassign_capability($capability, $roleid, $contextid = null) {
+    global $DB;
+    $conditions = ['capability' => $capability, 'roleid' => $roleid];
+    if ($contextid !== null) {
+        $conditions['contextid'] = $contextid;
+    }
+    return $DB->delete_records('role_capabilities', $conditions);
 }
 require_once __DIR__ . '/mock_core_events.php';
 
@@ -113,6 +130,13 @@ class context_course {
         return array_merge($list, $MOCK_COURSE_PARENTS[$this->instanceid] ?? []);
     }
     public function get_context_name($withprefix = true, $short = false): string { return 'Course ' . $this->instanceid; }
+}
+class context_system {
+    public int $id = 1;
+    public int $instanceid = 0;
+    public static function instance(): self {
+        return new self();
+    }
 }
 function get_role_users($roleid, $context, $parent = false, $fields = '', $sort = ''): array {
     global $DB;
@@ -195,6 +219,7 @@ class MockDB {
             'user'                        => [],
             'role'                        => [],
             'role_assignments'            => [],
+            'role_capabilities'           => [],
         ];
         $this->auto_inc = 1;
     }

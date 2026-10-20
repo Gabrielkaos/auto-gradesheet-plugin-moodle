@@ -592,6 +592,41 @@ class helper {
         return $removed;
     }
 
+    /**
+     * Takes local/gradesheet:manage away from non-editing teacher roles that
+     * still hold the pre-1.6 plugin default (CAP_ALLOW at system context).
+     * Moodle never removes a capability from an existing role when
+     * db/access.php drops an archetype, so upgraded sites kept it. Overrides
+     * in other contexts and any other permission were set by the admin and are
+     * left alone. Returns the shortnames of the roles changed.
+     *
+     * @return string[]
+     */
+    public static function remove_legacy_teacher_manage(): array {
+        global $DB;
+        $changed = [];
+        if (!function_exists('unassign_capability')) {
+            return $changed;
+        }
+        $cap = 'local/gradesheet:manage';
+        $sysctx = \context_system::instance();
+        foreach (get_archetype_roles('teacher') as $role) {
+            $default = $DB->record_exists('role_capabilities', [
+                'roleid' => $role->id, 'contextid' => $sysctx->id, 'capability' => $cap, 'permission' => CAP_ALLOW,
+            ]);
+            if (!$default) {
+                continue;
+            }
+            try {
+                unassign_capability($cap, $role->id, $sysctx->id);
+                $changed[] = $role->shortname;
+            } catch (\Throwable $e) {
+                debugging('local_gradesheet: could not remove ' . $cap . ' from role ' . $role->shortname . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+            }
+        }
+        return $changed;
+    }
+
     /** Display form of a signatory name: full name in CAPS. */
     private static function signatory_name(\stdClass $user): string {
         return strtoupper(trim(fullname($user)));
