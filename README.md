@@ -92,7 +92,7 @@ A Moodle **group** is a section. When a course has groups, the dashboard shows a
 
 ## Security & Permissions
 
-- `local/gradesheet:manage` — required for preview and exports (teachers, managers).
+- `local/gradesheet:manage` — required for preview, exports, settings and student statuses (editing teachers, managers).
 - `local/gradesheet:view` — required for viewing grades (students, teachers, managers).
 - Capability checks and context validation are enforced on all entry points.
 
