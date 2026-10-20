@@ -744,6 +744,38 @@ helper::set_group_overrides(1805, $g2, ['courseandyear' => '  BSCS 2B  ', 'sched
 $ov = helper::get_group_overrides(1805, $g2);
 $T->assertEqual("set_group_overrides trims and upper-cases the instructor", [$ov->courseandyear, $ov->schedule, $ov->instructor], ['BSCS 2B', '', 'MARIA CLARA']);
 $T->assertEqual("get_group_overrides for group 0 is null", helper::get_group_overrides(1805, 0), null);
+
+// 18f. Upgrade: pre-1.6 :manage grant on non-editing teacher roles.
+$DB->tables['role'] = [];
+$DB->tables['role_capabilities'] = [];
+$sysid = context_system::instance()->id;
+$courseid_ctx = context_course::instance(1805)->id;
+$r_t   = create_role('Non-editing teacher', 'teacher', '', 'teacher');
+$r_la  = create_role('Lab assistant', 'labassistant', '', 'teacher');
+$r_tut = create_role('Tutor', 'tutor', '', 'teacher');
+$r_obs = create_role('Observer', 'observer', '', 'teacher');
+$r_et  = create_role('Teacher', 'editingteacher', '', 'editingteacher');
+$rc = function (int $roleid, int $contextid, string $cap, int $permission) use ($DB): void {
+    $DB->insert_record('role_capabilities', (object)['roleid' => $roleid, 'contextid' => $contextid, 'capability' => $cap, 'permission' => $permission]);
+};
+$rc($r_t,   $sysid,        'local/gradesheet:manage', CAP_ALLOW);   // Old plugin default.
+$rc($r_t,   $sysid,        'local/gradesheet:view',   CAP_ALLOW);
+$rc($r_t,   $courseid_ctx, 'local/gradesheet:manage', CAP_ALLOW);   // Admin's course override.
+$rc($r_la,  $sysid,        'local/gradesheet:manage', CAP_ALLOW);   // Custom role cloned from teacher.
+$rc($r_tut, $sysid,        'local/gradesheet:manage', CAP_PREVENT); // Admin changed the permission.
+$rc($r_et,  $sysid,        'local/gradesheet:manage', CAP_ALLOW);
+$hasrc = function (int $roleid, int $contextid, string $cap) use ($DB): bool {
+    return $DB->record_exists('role_capabilities', ['roleid' => $roleid, 'contextid' => $contextid, 'capability' => $cap]);
+};
+$T->assertEqual("Upgrade removes the legacy :manage default from every non-editing teacher role", helper::remove_legacy_teacher_manage(), ['teacher', 'labassistant']);
+$T->assertEqual("...at system context only", [$hasrc($r_t, $sysid, 'local/gradesheet:manage'), $hasrc($r_la, $sysid, 'local/gradesheet:manage')], [false, false]);
+$T->assertEqual("...keeping the teacher's :view grant", $hasrc($r_t, $sysid, 'local/gradesheet:view'), true);
+$T->assertEqual("...keeping an admin's course-level override", $hasrc($r_t, $courseid_ctx, 'local/gradesheet:manage'), true);
+$T->assertEqual("...keeping a permission the admin changed (CAP_PREVENT)", $DB->get_field('role_capabilities', 'permission', ['roleid' => $r_tut, 'capability' => 'local/gradesheet:manage']), CAP_PREVENT);
+$T->assertEqual("...and never touching editing teachers", $hasrc($r_et, $sysid, 'local/gradesheet:manage'), true);
+$T->assertEqual("Upgrade teacher cleanup is idempotent", helper::remove_legacy_teacher_manage(), []);
+$DB->tables['role'] = [];
+$DB->tables['role_capabilities'] = [];
 mock_reset_scenario();
 
 // =========================================================================

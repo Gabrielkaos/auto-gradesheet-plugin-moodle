@@ -230,5 +230,13 @@ function xmldb_local_gradesheet_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026101301, 'local', 'gradesheet');
     }
 
+    if ($oldversion < 2026102000) {
+        // Before 2026091600 db/access.php granted :manage to the non-editing
+        // teacher archetype. Removing it there never reached existing roles,
+        // so drop it where it still sits at that default (system, CAP_ALLOW).
+        \local_gradesheet\helper::remove_legacy_teacher_manage();
+        upgrade_plugin_savepoint(true, 2026102000, 'local', 'gradesheet');
+    }
+
     return true;
 }
