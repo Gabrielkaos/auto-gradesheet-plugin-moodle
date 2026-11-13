@@ -10,6 +10,9 @@ defined('MOODLE_INTERNAL') || die();
  */
 class pdf_builder {
 
+    /** Student rows per printed page; excel_builder paginates with the same number. */
+    const ROWS_PER_PAGE = 20;
+
     /**
      * @return array{pdf: gradesheet_pdf, filename: string, data: array}|null
      *         Null when the roster is empty (nothing to print).
@@ -59,9 +62,7 @@ class pdf_builder {
         // ── PAGINATION ──────────────────────────────────────────────────────────
         // Mirrors preview.php exactly: every "page" gets its own full header,
         // legend, table header, and signature block, capped at 20 student rows.
-        $rowsperpage    = 20;
-
-        $pages = empty($rows) ? [[]] : array_chunk($rows, $rowsperpage);
+        $pages = empty($rows) ? [[]] : array_chunk($rows, self::ROWS_PER_PAGE);
 
         $totalpages = count($pages);
 
