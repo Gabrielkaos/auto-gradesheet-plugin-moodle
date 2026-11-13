@@ -39,7 +39,7 @@ local_gradesheet/
 ├── course_settings.php         Course configuration page
 ├── preview.php                 Print-ready HTML preview
 ├── export.php                  PDF export (TCPDF)
-├── export_excel.php            Excel export (PhpSpreadsheet)
+├── export_excel.php            Excel export (PhpSpreadsheet, paginated like the PDF)
 ├── lib.php                     Moodle navigation hooks
 └── version.php                 Plugin metadata
 ```
@@ -50,6 +50,8 @@ Business logic is centralized in the `classes/` layer:
 
 - **`helper.php`** — Static methods for grade transmutation, config loading, student filtering, and per-student grade computation. Single source of truth for the grading formula.
 - **`gradesheet_service.php`** — Coordinator that iterates all students and returns rows + pass/fail statistics. Used by `export.php`, `export_excel.php`, and `preview.php`.
+
+- **`pdf_builder.php`** / **`excel_builder.php`** — Build the PDF and the Excel workbook. Both paginate at 20 students per page (`pdf_builder::ROWS_PER_PAGE`) and repeat the logos, header, rating legend, signature block and "Page X of Y" footer on every page, so a printed Excel file matches the PDF page for page. The Excel text stays in ordinary cells so it can be edited by hand before printing.
 
 Page files (`index.php`, `export.php`, `export_excel.php`, `preview.php`) are thin controllers responsible only for output formatting.
 

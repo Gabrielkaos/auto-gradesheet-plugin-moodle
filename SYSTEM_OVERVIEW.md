@@ -163,7 +163,7 @@ Defined declaratively in `db/install.xml` and migrated via `db/upgrade.php`.
 | `index.php` | Faculty Dashboard / Student Card | Entry point: renders faculty overview table or student personal grade card based on role capabilities. |
 | `preview.php` | On-Screen Print Preview | Generates HTML view matching the ESSU-ACAD-712.b report layout with pagination and signature blocks. |
 | `export.php` | PDF Export Engine | Generates vector PDF document via TCPDF formatted to official institutional specifications. |
-| `export_excel.php` | Excel Export Engine | Generates spreadsheet document via PhpSpreadsheet with pre-calculated values matching report structure. |
+| `export_excel.php` | Excel Export Engine | Generates the spreadsheet via `classes/excel_builder.php` (PhpSpreadsheet): A4 pages of 20 students with logos, legend, signature block and page-number footer, with explicit page breaks so printing matches the PDF; values are pre-calculated and all text is editable. |
 | `course_settings.php` | Course Settings Controller | Configuration management: course details, signatories, category weights, item mapping, custom scale setup. |
 | `cli/` | CLI Automation Utilities | Development and verification scripts (`create_test_course.php`, `generate_test_data.php`, `test_form_hook.php`). |
 | `tests/heavy_test_suite.php` | Verification Test Suite | Automated test harness executing boundary checks, validation rules, group isolation, and cohort scaling benchmarks. |
