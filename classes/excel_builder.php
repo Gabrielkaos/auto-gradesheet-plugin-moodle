@@ -56,8 +56,16 @@ class excel_builder {
     const H_SIGLINE   = 13;
     const H_SIGSPACE  = 17;
 
-    /** Rough number of characters of a bold 9pt course-info value that fit on one line. */
-    const INFO_CHARS_PER_LINE = 26;
+    /**
+     * Width budget of one line of the course-info value cell (merged C:D), in
+     * "lowercase letter" units; capitals and digits count INFO_CAPS_WEIGHT each.
+     * Deliberately a little pessimistic: a spare blank row is harmless, a
+     * clipped title is not.
+     */
+    const INFO_LINE_UNITS_BOLD    = 25;
+    const INFO_LINE_UNITS_REGULAR = 28;
+    const INFO_CAPS_WEIGHT        = 1.5;
+    const INFO_MAX_LINES          = 6;
 
     /**
      * Builds the workbook for a course (or one section of it).
@@ -224,7 +232,7 @@ class excel_builder {
         // A long value wraps over extra rows rather than being cut off by the legend.
         $infoRows = 0;
         foreach ($info as $k => $item) {
-            $lines = (int)min(3, max(1, ceil(mb_strlen((string)$item[1]) / self::INFO_CHARS_PER_LINE)));
+            $lines = self::wrapped_lines((string)$item[1], $item[2]);
             $info[$k][3] = $lines;
             $infoRows += $lines;
         }
@@ -364,6 +372,34 @@ class excel_builder {
         return [$r, $height];
     }
 
+    /** Number of lines a value needs in the course-info cell, simulating word wrap. */
+    private static function wrapped_lines(string $text, bool $bold): int {
+        $budget = $bold ? self::INFO_LINE_UNITS_BOLD : self::INFO_LINE_UNITS_REGULAR;
+        $width  = function (string $s): float {
+            $w = 0.0;
+            foreach (preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY) as $ch) {
+                $w += preg_match('/[\p{Lu}\p{N}]/u', $ch) ? self::INFO_CAPS_WEIGHT : 1.0;
+            }
+            return $w;
+        };
+        $lines = 1;
+        $used  = 0.0;
+        foreach (preg_split('/\s+/u', trim($text), -1, PREG_SPLIT_NO_EMPTY) as $word) {
+            $w = $width($word);
+            if ($used > 0 && $used + 1 + $w > $budget) {
+                $lines++;
+                $used = 0.0;
+            }
+            // A single word longer than a line is broken across lines.
+            while ($w > $budget) {
+                $lines++;
+                $w -= $budget;
+            }
+            $used += ($used > 0 ? 1 : 0) + $w;
+        }
+        return (int)min(self::INFO_MAX_LINES, $lines);
+    }
+
     /** Places both logos in the band that starts at row $top. */
     private static function place_logos(Worksheet $sheet, int $top, array $logos): void {
         $font = $sheet->getParent()->getDefaultStyle()->getFont();
@@ -420,7 +456,7 @@ class excel_builder {
      */
     private static function grade_cell(Worksheet $sheet, string $cell, $value): void {
         $value = trim((string)$value);
-        if ($value !== '' && is_numeric($value)) {
+        if (preg_match('/^(0|[1-9]\d*)(\.\d+)?$/', $value)) {
             $dot      = strpos($value, '.');
             $decimals = ($dot === false) ? 0 : strlen($value) - $dot - 1;
             $sheet->setCellValueExplicit($cell, (float)$value, DataType::TYPE_NUMERIC);
